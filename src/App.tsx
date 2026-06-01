@@ -1,0 +1,948 @@
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from "react";
+import gsap from "gsap";
+import { ScrollTrigger } from "gsap/ScrollTrigger";
+import Lenis from "lenis";
+import { AnimatedContent } from "./components/AnimatedContent";
+
+gsap.registerPlugin(ScrollTrigger);
+
+const entryFeatures = [
+  {
+    title: "智能行为分析",
+    body: "基于历史对局、接单节奏与平台行为，识别异常成长曲线与非自然表现。",
+  },
+  {
+    title: "鼠标轨迹异常检测",
+    body: "采样轨迹速度、转向与微抖模式，定位脚本化瞄准与辅助行为。",
+  },
+  {
+    title: "键盘输入模式识别",
+    body: "分析按键间隔、组合节奏与宏行为，区分熟练操作和自动化输入。",
+  },
+  {
+    title: "游戏内数据交叉验证",
+    body: "将战绩、设备环境与检测记录互相校验，降低误判与漏判。",
+  },
+];
+
+const hardwareLayers = [
+  ["PCIe", "设备枚举", "识别异常采集卡、桥接器与伪装设备"],
+  ["Memory", "内存完整性", "校验敏感区域与驱动访问路径"],
+  ["USB", "外设行为", "监控输入代理、宏控制器与异常轮询"],
+  ["Firmware", "固件签名", "验证驱动、固件与低层模块签名"],
+];
+
+const trustSteps = [
+  ["检测", "入驻前完成环境、行为与硬件检测，形成初始可信基线。"],
+  ["记录", "每一次检测结果保留时间、设备与报告编号，可被追溯。"],
+  ["申诉", "异常结果进入公正复核流程，平台与玩家都有依据。"],
+  ["信誉", "持续评估账号风险变化，让长期可信玩家获得更高信用。"],
+];
+
+const decryptCharacters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()_+";
+
+function App() {
+  useEffect(() => {
+    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    if (reduced) {
+      document.documentElement.classList.add("reduced-motion");
+      return;
+    }
+
+    const lenis = new Lenis({
+      lerp: 0.08,
+      smoothWheel: true,
+      wheelMultiplier: 0.9,
+    });
+
+    lenis.on("scroll", ScrollTrigger.update);
+    gsap.ticker.add((time) => lenis.raf(time * 1000));
+    gsap.ticker.lagSmoothing(0);
+
+    let snapTimer: number | undefined;
+    let shouldSnapFirstScreens = false;
+    const enableSnap = () => {
+      shouldSnapFirstScreens = true;
+    };
+    const snapFirstScreens = () => {
+      if (!shouldSnapFirstScreens) {
+        return;
+      }
+
+      const y = window.scrollY;
+      const firstScreenHeight = window.innerHeight;
+
+      if (y <= 8 || y >= firstScreenHeight - 8) {
+        shouldSnapFirstScreens = false;
+        return;
+      }
+
+      window.clearTimeout(snapTimer);
+      snapTimer = window.setTimeout(() => {
+        const currentY = window.scrollY;
+
+        if (currentY > 8 && currentY < firstScreenHeight - 8) {
+          lenis.scrollTo(currentY < firstScreenHeight * 0.5 ? 0 : firstScreenHeight, {
+            duration: 0.62,
+            easing: (t: number) => 1 - Math.pow(1 - t, 3),
+          });
+        }
+
+        shouldSnapFirstScreens = false;
+      }, 110);
+    };
+
+    window.addEventListener("wheel", enableSnap, { passive: true });
+    window.addEventListener("touchmove", enableSnap, { passive: true });
+    lenis.on("scroll", snapFirstScreens);
+    const scrollToHash = (hash: string, immediate = false) => {
+      if (!hash) {
+        return;
+      }
+
+      const target = document.querySelector(hash);
+      if (target) {
+        lenis.scrollTo(target as HTMLElement, {
+          immediate,
+          offset: 0,
+          duration: immediate ? 0 : 0.72,
+        });
+      }
+    };
+    const handleHashChange = () => scrollToHash(window.location.hash);
+
+    window.addEventListener("hashchange", handleHashChange);
+    window.setTimeout(() => scrollToHash(window.location.hash, true), 60);
+
+    const ctx = gsap.context(() => {
+      gsap.fromTo(
+        ".badge-visual",
+        { autoAlpha: 0, y: 36, scale: 0.96, rotateX: 7 },
+        {
+          autoAlpha: 1,
+          y: 0,
+          scale: 1,
+          rotateX: 0,
+          duration: 1,
+          ease: "power3.out",
+          scrollTrigger: {
+            trigger: ".product-hero",
+            start: "top 72%",
+            toggleActions: "play none none reverse",
+          },
+        },
+      );
+
+      ScrollTrigger.matchMedia({
+        "(min-width: 900px)": () => {
+          const timeline = gsap.timeline({
+            scrollTrigger: {
+              trigger: ".hardware",
+              start: "top top",
+              end: "+=1700",
+              pin: true,
+              scrub: 0.7,
+            },
+          });
+
+          timeline
+            .to(".hardware-device", { rotateX: 0, y: -10, duration: 0.35 })
+            .to(".scan-step-0, .device-layer-0", { opacity: 1, color: "#2997ff", duration: 0.25 })
+            .to(".scan-step-1, .device-layer-1", { opacity: 1, color: "#2997ff", duration: 0.25 })
+            .to(".scan-step-2, .device-layer-2", { opacity: 1, color: "#2997ff", duration: 0.25 })
+            .to(".scan-step-3, .device-layer-3", { opacity: 1, color: "#2997ff", duration: 0.25 })
+            .to(".report-state", { opacity: 1, y: 0, duration: 0.4 });
+        },
+      });
+
+      gsap.timeline({
+        scrollTrigger: {
+          trigger: ".hardware",
+          start: "top 78%",
+          end: "top 12%",
+          scrub: 0.7,
+        },
+      })
+        .to(".report-folder-front", { y: 72, rotationX: 23, ease: "power2.out", duration: 0.7 }, 0)
+        .to(".report-sheet-main", { y: -34, scale: 1, rotationX: 4, rotationY: -7, rotationZ: 0.6, opacity: 1, ease: "power3.out", duration: 1 }, 0.08)
+        .to(".report-sheet-fail", { x: -56, y: 2, rotation: -7, opacity: 0.82, ease: "power2.out", duration: 0.9 }, 0.16)
+        .to(".report-sheet-review", { x: 50, y: 12, rotation: 6, opacity: 0.72, ease: "power2.out", duration: 0.9 }, 0.2);
+
+      gsap.to(".timeline-fill", {
+        width: "100%",
+        ease: "none",
+        scrollTrigger: {
+          trigger: ".trust",
+          start: "top 62%",
+          end: "bottom 52%",
+          scrub: true,
+        },
+      });
+
+      gsap.fromTo(
+        ".trust-step",
+        { autoAlpha: 0.35, y: 18 },
+        {
+          autoAlpha: 1,
+          y: 0,
+          stagger: 0.16,
+          ease: "power2.out",
+          scrollTrigger: {
+            trigger: ".trust-track",
+            start: "top 72%",
+            end: "bottom 54%",
+            scrub: true,
+          },
+        },
+      );
+    });
+
+    return () => {
+      window.clearTimeout(snapTimer);
+      window.removeEventListener("wheel", enableSnap);
+      window.removeEventListener("touchmove", enableSnap);
+      window.removeEventListener("hashchange", handleHashChange);
+      lenis.off("scroll", snapFirstScreens);
+      ctx.revert();
+      lenis.destroy();
+    };
+  }, []);
+
+  return (
+    <main>
+      <Nav />
+      <section className="section hero code-hero-section" id="top">
+        <CodeHero />
+      </section>
+
+      <section className="section hero product-hero" id="overview">
+        <div className="section-inner hero-grid">
+          <AnimatedContent className="hero-copy" distance={20}>
+            <p className="eyebrow">Hooked Anti-Cheat</p>
+            <h1>
+              让每一次上场，
+              <br />
+              都经得起验证。
+            </h1>
+            <p className="hero-subtitle">
+              Hooked 厚壳反作弊，为陪玩与代练平台建立可信的玩家准入标准。
+            </p>
+            <div className="hero-actions">
+              <a className="button button-primary" href="#contact">预约服务</a>
+              <a className="button button-secondary" href="#query">查看检测结果</a>
+            </div>
+          </AnimatedContent>
+          <div className="hero-product" aria-label="玩家身份验证卡产品视觉">
+            <IdentityCard />
+          </div>
+        </div>
+      </section>
+
+      <section className="section entry" id="entry">
+        <div className="section-inner">
+          <AnimatedContent className="section-heading">
+            <p className="eyebrow">Entry Screening</p>
+            <h2>先筛选，再入驻。</h2>
+            <p>
+              从玩家身份、设备环境到游戏行为，Hooked 将准入检测前置，帮助平台在服务开始前识别风险。
+            </p>
+          </AnimatedContent>
+          <div className="feature-row">
+            {entryFeatures.map((feature, index) => (
+              <AnimatedContent
+                className="feature-block"
+                delay={index * 0.05}
+                key={feature.title}
+              >
+                <span>{String(index + 1).padStart(2, "0")}</span>
+                <h3>{feature.title}</h3>
+                <p>{feature.body}</p>
+              </AnimatedContent>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="section hardware" id="hardware">
+        <div className="section-inner hardware-grid">
+          <AnimatedContent className="dark-copy">
+            <p className="eyebrow">Hardware Scan</p>
+            <h2>让硬件外挂无处伪装。</h2>
+            <p>
+              针对 DMA 硬件外挂与底层设备伪装，建立从总线枚举到固件签名的多层扫描链路。
+            </p>
+            <div className="scan-list" aria-label="硬件扫描层级">
+              {hardwareLayers.map(([label, title, body], index) => (
+                <div className={`scan-step scan-step-${index}`} key={label}>
+                  <span>{label}</span>
+                  <strong>{title}</strong>
+                  <p>{body}</p>
+                </div>
+              ))}
+            </div>
+          </AnimatedContent>
+          <HardwareDevice />
+        </div>
+      </section>
+
+      <section className="section trust" id="trust">
+        <div className="section-inner">
+          <AnimatedContent className="section-heading centered">
+            <p className="eyebrow">Trust Layer</p>
+            <h2>真实力，无需伪装。</h2>
+            <p>
+              检测不是一次性拦截，而是一套让平台、玩家与申诉流程都能被看见的信任机制。
+            </p>
+          </AnimatedContent>
+          <div className="trust-track">
+            <div className="timeline-base">
+              <div className="timeline-fill" />
+            </div>
+            <div className="trust-steps">
+              {trustSteps.map(([title, body], index) => (
+                <div className="trust-step" key={title}>
+                  <span>{String(index + 1).padStart(2, "0")}</span>
+                  <h3>{title}</h3>
+                  <p>{body}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="section query" id="query">
+        <div className="section-inner query-grid">
+          <AnimatedContent className="section-heading">
+            <p className="eyebrow">Verification Query</p>
+            <h2>
+              每一次检测，
+              <br />
+              都可以被追溯。
+            </h2>
+            <p>
+              检测报告实时更新，支持历史追溯、详细报告查看与异常状态复核，让结果清晰可查。
+            </p>
+          </AnimatedContent>
+          <AnimatedContent className="query-card" scale={0.97}>
+            <div>
+              <p className="query-label">检测结果查询</p>
+              <h3>输入报告编号，查看完整验证状态。</h3>
+            </div>
+            <form onSubmit={(event) => event.preventDefault()}>
+              <input aria-label="报告编号" placeholder="例如：HKD-2026-0826-001" />
+              <button className="button button-primary" type="submit">立即查询</button>
+            </form>
+            <div className="query-meta">
+              <span>实时更新</span>
+              <span>历史追溯</span>
+              <span>详细报告</span>
+            </div>
+          </AnimatedContent>
+        </div>
+      </section>
+
+      <footer className="contact" id="contact">
+        <div className="section-inner contact-grid">
+          <AnimatedContent className="contact-copy">
+            <p className="eyebrow">Contact</p>
+            <h2>为你的平台建立反作弊准入标准。</h2>
+            <p>
+              留下平台规模与检测需求，我们会协助配置入驻检测、结果查询与申诉流程。
+            </p>
+            <a className="button button-primary" href="#contact">预约服务</a>
+          </AnimatedContent>
+          <AnimatedContent className="contact-info">
+            <div>
+              <span>企业微信</span>
+              <strong>扫码预约对接</strong>
+            </div>
+            <div className="qr-box" aria-label="企业微信二维码占位">
+              <span />
+              <span />
+              <span />
+              <span />
+            </div>
+          </AnimatedContent>
+        </div>
+        <div className="footer-line">
+          <span>© 2026 Hooked 厚壳反作弊</span>
+          <span>服务条款 · 隐私政策</span>
+        </div>
+      </footer>
+    </main>
+  );
+}
+
+function CodeHero() {
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    const context = canvas?.getContext("2d");
+
+    if (!canvas || !context) {
+      return;
+    }
+
+    let animationFrame = 0;
+    let width = 0;
+    let height = 0;
+    let digitPoints: Array<{
+      x: number;
+      y: number;
+      value: string;
+      alpha: number;
+      phase: number;
+      speed: number;
+      drift: number;
+    }> = [];
+
+    const buildScene = () => {
+      const ratio = Math.min(window.devicePixelRatio || 1, 2);
+      width = window.innerWidth;
+      height = window.innerHeight;
+      canvas.width = Math.floor(width * ratio);
+      canvas.height = Math.floor(height * ratio);
+      canvas.style.width = `${width}px`;
+      canvas.style.height = `${height}px`;
+      context.setTransform(ratio, 0, 0, ratio, 0, 0);
+
+      const columns = Math.max(18, Math.floor(width / 58));
+      const rows = Math.max(26, Math.floor(height / 25));
+      digitPoints = [];
+
+      for (let cluster = 0; cluster < 34; cluster += 1) {
+        const centerX = Math.random() * width;
+        const centerY = Math.random() * height * 0.88;
+        const radiusX = 42 + Math.random() * 110;
+        const radiusY = 70 + Math.random() * 170;
+
+        for (let i = 0; i < 34; i += 1) {
+          const angle = Math.random() * Math.PI * 2;
+          const distance = Math.sqrt(Math.random());
+          const x = centerX + Math.cos(angle) * radiusX * distance;
+          const y = centerY + Math.sin(angle) * radiusY * distance;
+
+          if (x < -20 || x > width + 20 || y < -20 || y > height + 20) {
+            continue;
+          }
+
+          digitPoints.push({
+            x: Math.round(x / 12) * 12,
+            y: Math.round(y / 18) * 18,
+            value: Math.random() > 0.22 ? "9" : String(1 + Math.floor(Math.random() * 8)),
+            alpha: 0.38 + Math.random() * 0.42,
+            phase: Math.random() * Math.PI * 2,
+            speed: 14 + Math.random() * 46,
+            drift: -4 + Math.random() * 8,
+          });
+        }
+      }
+
+      for (let column = 0; column < columns; column += 1) {
+        if (Math.random() < 0.34) {
+          continue;
+        }
+
+        const x = column * (width / columns) + Math.random() * 20;
+        const runStart = Math.random() * height * 0.25;
+        const runLength = 8 + Math.floor(Math.random() * rows * 0.5);
+
+        for (let row = 0; row < runLength; row += 1) {
+          if (Math.random() < 0.28) {
+            continue;
+          }
+
+          digitPoints.push({
+            x,
+            y: runStart + row * 18,
+            value: Math.random() > 0.18 ? "9" : String(1 + Math.floor(Math.random() * 8)),
+            alpha: 0.34 + Math.random() * 0.38,
+            phase: Math.random() * Math.PI * 2,
+            speed: 24 + Math.random() * 58,
+            drift: -2 + Math.random() * 4,
+          });
+        }
+      }
+    };
+
+    const draw = (time: number) => {
+      context.fillStyle = "#070707";
+      context.fillRect(0, 0, width, height);
+
+      const gradient = context.createRadialGradient(width * 0.5, height * 0.42, 80, width * 0.5, height * 0.42, width * 0.78);
+      gradient.addColorStop(0, "rgba(47, 52, 46, 0.28)");
+      gradient.addColorStop(0.5, "rgba(12, 13, 12, 0.78)");
+      gradient.addColorStop(1, "rgba(3, 3, 3, 1)");
+      context.fillStyle = gradient;
+      context.fillRect(0, 0, width, height);
+
+      context.save();
+      context.font = "500 16px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace";
+      context.textAlign = "center";
+      context.textBaseline = "middle";
+      context.shadowBlur = 8;
+      context.shadowColor = "rgba(226, 231, 205, 0.42)";
+
+      for (const point of digitPoints) {
+        const flicker = 0.72 + Math.sin(time * 0.0012 + point.phase) * 0.2;
+        const fall = (point.y + time * 0.001 * point.speed) % (height + 90);
+        const y = fall - 45;
+        const x = point.x + Math.sin(time * 0.00045 + point.phase) * point.drift;
+        context.fillStyle = `rgba(218, 222, 200, ${point.alpha * flicker})`;
+        context.fillText(point.value, x, y);
+      }
+      context.restore();
+
+      context.save();
+      const fontSize = Math.min(width * 0.23, height * 0.3);
+      context.font = `800 ${fontSize}px system-ui, -apple-system, BlinkMacSystemFont, sans-serif`;
+      context.textAlign = "center";
+      context.textBaseline = "alphabetic";
+      context.fillStyle = "rgba(220, 218, 200, 0.58)";
+      context.shadowColor = "rgba(255,255,255,0.08)";
+      context.shadowBlur = 20;
+      context.fillText("Hooked", width * 0.5, height + fontSize * 0.04);
+      context.restore();
+
+      animationFrame = window.requestAnimationFrame(draw);
+    };
+
+    buildScene();
+    animationFrame = window.requestAnimationFrame(draw);
+    window.addEventListener("resize", buildScene);
+
+    return () => {
+      window.cancelAnimationFrame(animationFrame);
+      window.removeEventListener("resize", buildScene);
+    };
+  }, []);
+
+  return (
+    <div className="code-hero-shell" aria-label="Hooked 数字验证首屏视觉">
+      <canvas ref={canvasRef} className="code-hero-canvas" />
+    </div>
+  );
+}
+
+function Nav() {
+  return (
+    <header className="nav">
+      <a className="brand" href="#top" aria-label="Hooked 首页">
+        <DecryptedBrandText texts={["HOOKED", "Anti-Cheat"]} />
+        <small>厚壳反作弊</small>
+      </a>
+      <nav aria-label="主要导航">
+        <a href="#entry">Entry</a>
+        <a href="#hardware">Scan</a>
+        <a href="#trust">Trust</a>
+        <a href="#query">Query</a>
+        <a href="#contact">Contact</a>
+      </nav>
+    </header>
+  );
+}
+
+function DecryptedBrandText({ texts }: { texts: [string, string] }) {
+  const [textIndex, setTextIndex] = useState(0);
+  const text = texts[textIndex];
+  const [displayText, setDisplayText] = useState(text);
+  const [revealedIndices, setRevealedIndices] = useState<Set<number>>(() => new Set(text.split("").map((_, index) => index)));
+  const intervalRef = useRef<number | undefined>(undefined);
+  const cycleTimeoutRef = useRef<number | undefined>(undefined);
+
+  const chars = useMemo(() => decryptCharacters.split(""), []);
+
+  const shuffle = useCallback((revealed: Set<number>) => {
+    return text
+      .split("")
+      .map((char, index) => {
+        if (char === " " || revealed.has(index)) {
+          return char;
+        }
+
+        return chars[Math.floor(Math.random() * chars.length)];
+      })
+      .join("");
+  }, [chars, text]);
+
+  const play = useCallback((nextText = text) => {
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      setDisplayText(nextText);
+      setRevealedIndices(new Set(nextText.split("").map((_, index) => index)));
+      return;
+    }
+
+    window.clearInterval(intervalRef.current);
+
+    let pointer = 0;
+    let iteration = 0;
+    const order = nextText.split("").map((_, index) => index);
+    const initialSet = new Set<number>();
+    setRevealedIndices(initialSet);
+    setDisplayText(shuffle(initialSet));
+
+    intervalRef.current = window.setInterval(() => {
+      iteration += 1;
+      const nextSet = new Set<number>();
+
+      for (let i = 0; i < pointer; i += 1) {
+        nextSet.add(order[i]);
+      }
+
+      if (iteration % 2 === 0 && pointer < order.length) {
+        nextSet.add(order[pointer]);
+        pointer += 1;
+      }
+
+      setRevealedIndices(nextSet);
+      setDisplayText(pointer >= order.length ? nextText : shuffle(nextSet));
+
+      if (pointer >= order.length) {
+        window.clearInterval(intervalRef.current);
+      }
+    }, 48);
+  }, [shuffle, text]);
+
+  useEffect(() => {
+    play(text);
+    cycleTimeoutRef.current = window.setTimeout(() => {
+      setTextIndex((current) => (current + 1) % texts.length);
+    }, 3000);
+
+    return () => {
+      window.clearTimeout(cycleTimeoutRef.current);
+      window.clearInterval(intervalRef.current);
+    };
+  }, [play, text, texts.length]);
+
+  return (
+    <span className="brand-decrypt" onMouseEnter={() => play(text)}>
+      <span className="sr-only">{texts.join(" / ")}</span>
+      <span aria-hidden="true">
+        {displayText.split("").map((char, index) => (
+          <span
+            className={revealedIndices.has(index) ? "brand-decrypt-char" : "brand-decrypt-char encrypted"}
+            key={`${char}-${index}`}
+          >
+            {char}
+          </span>
+        ))}
+      </span>
+    </span>
+  );
+}
+
+function IdentityCard() {
+  const [drag, setDrag] = useState({ x: 0, y: 0, isDragging: false });
+  const [sway, setSway] = useState(0);
+  const dragRef = useRef(drag);
+  const releaseFrameRef = useRef<number | undefined>(undefined);
+  const dragStartRef = useRef({
+    active: false,
+    originX: 0,
+    originY: 0,
+    pointerId: -1,
+    startX: 0,
+    startY: 0,
+  });
+  const swayRef = useRef(0);
+
+  const clampDrag = (value: number, max: number) => Math.max(-max, Math.min(max, value));
+  const clampRange = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
+
+  useEffect(() => {
+    dragRef.current = drag;
+  }, [drag]);
+
+  const handlePointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (event.button !== 0) {
+      return;
+    }
+
+    window.cancelAnimationFrame(releaseFrameRef.current ?? 0);
+    event.currentTarget.setPointerCapture(event.pointerId);
+    dragStartRef.current = {
+      active: true,
+      originX: drag.x,
+      originY: drag.y,
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+    };
+    setDrag((current) => ({ ...current, isDragging: true }));
+  };
+
+  const resetDrag = useCallback(() => {
+    dragStartRef.current.active = false;
+    dragStartRef.current.pointerId = -1;
+    window.cancelAnimationFrame(releaseFrameRef.current ?? 0);
+
+    const start = dragRef.current;
+    const startTime = performance.now();
+    const duration = 520;
+
+    const animateRelease = (time: number) => {
+      const progress = clampRange((time - startTime) / duration, 0, 1);
+      const eased = 1 - Math.pow(1 - progress, 3);
+      const nextDrag = {
+        x: start.x * (1 - eased),
+        y: start.y * (1 - eased),
+        isDragging: false,
+      };
+
+      dragRef.current = nextDrag;
+      setDrag(nextDrag);
+
+      if (progress < 1) {
+        releaseFrameRef.current = window.requestAnimationFrame(animateRelease);
+      } else {
+        const settled = { x: 0, y: 0, isDragging: false };
+        dragRef.current = settled;
+        setDrag(settled);
+      }
+    };
+
+    releaseFrameRef.current = window.requestAnimationFrame(animateRelease);
+  }, []);
+
+  const handlePointerUp = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (dragStartRef.current.pointerId === event.pointerId && event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+
+    resetDrag();
+  };
+
+  useEffect(() => {
+    const handleWindowMove = (event: PointerEvent) => {
+      const current = dragStartRef.current;
+
+      if (!current.active || current.pointerId !== event.pointerId) {
+        return;
+      }
+
+      const nextX = current.originX + event.clientX - current.startX;
+      const nextY = current.originY + event.clientY - current.startY;
+      const nextDrag = {
+        x: clampDrag(nextX, 112),
+        y: clampRange(nextY, 0, 78),
+        isDragging: true,
+      };
+
+      dragRef.current = nextDrag;
+      setDrag(nextDrag);
+    };
+
+    const handleWindowRelease = (event: PointerEvent) => {
+      if (dragStartRef.current.active && dragStartRef.current.pointerId === event.pointerId) {
+        resetDrag();
+      }
+    };
+
+    window.addEventListener("pointermove", handleWindowMove);
+    window.addEventListener("pointerup", handleWindowRelease);
+    window.addEventListener("pointercancel", handleWindowRelease);
+    window.addEventListener("blur", resetDrag);
+
+    return () => {
+      window.removeEventListener("pointermove", handleWindowMove);
+      window.removeEventListener("pointerup", handleWindowRelease);
+      window.removeEventListener("pointercancel", handleWindowRelease);
+      window.removeEventListener("blur", resetDrag);
+      window.cancelAnimationFrame(releaseFrameRef.current ?? 0);
+    };
+  }, [resetDrag]);
+
+  useEffect(() => {
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      return;
+    }
+
+    let lastY = window.scrollY;
+    let frame = 0;
+
+    const handleScroll = () => {
+      const nextY = window.scrollY;
+      const delta = nextY - lastY;
+      lastY = nextY;
+      swayRef.current = clampDrag(swayRef.current + delta * 0.055, 7);
+    };
+
+    const tick = () => {
+      swayRef.current *= 0.88;
+      setSway(Math.abs(swayRef.current) < 0.01 ? 0 : swayRef.current);
+      frame = window.requestAnimationFrame(tick);
+    };
+
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    frame = window.requestAnimationFrame(tick);
+
+    return () => {
+      window.removeEventListener("scroll", handleScroll);
+      window.cancelAnimationFrame(frame);
+    };
+  }, []);
+
+  const strapTargetX = drag.x;
+  const strapTargetY = 70 + drag.y;
+  const strapLength = Math.hypot(strapTargetX, strapTargetY) + 8;
+  const strapAngle = clampRange(
+    Math.atan2(-strapTargetX, strapTargetY) * (180 / Math.PI) + (drag.isDragging ? 0 : sway * 0.18),
+    -62,
+    62,
+  );
+  const lanyardStyle = {
+    "--strap-angle": `${strapAngle}deg`,
+    "--strap-length": `${strapLength}px`,
+  } as CSSProperties;
+
+  const cardStyle = {
+    "--card-x": `${drag.x}px`,
+    "--card-y": `${drag.y}px`,
+    "--card-rx": `${-drag.y * 0.045}deg`,
+    "--card-ry": `${drag.x * 0.055}deg`,
+    "--card-rz": `${drag.x * 0.018 + sway}deg`,
+  } as CSSProperties;
+
+  return (
+    <div className="identity-stage badge-stage">
+      <div className={`badge-visual${drag.isDragging ? " is-dragging" : ""}`} style={lanyardStyle}>
+        <div className="badge-wall-anchor" aria-hidden="true">
+          <span>HOOKED</span>
+        </div>
+        <div className="badge-lanyard" aria-hidden="true">
+          <span className="lanyard-band lanyard-band-left" />
+          <span className="lanyard-band lanyard-band-right" />
+        </div>
+        <div
+          className="badge-drag-plane"
+          onPointerCancel={handlePointerUp}
+          onPointerDown={handlePointerDown}
+          onPointerUp={handlePointerUp}
+          role="button"
+          data-testid="identity-badge"
+          style={cardStyle}
+          tabIndex={0}
+          aria-label="可拖拽玩家身份名片"
+        >
+          <div className="badge-card">
+            <div className="badge-hole" aria-hidden="true" />
+            <div className="badge-clip" aria-hidden="true" />
+            <div className="card-top">
+              <small>Hooked Anti-Cheat</small>
+              <span>PLAYER<br />IDENTITY</span>
+              <strong>VERIFIED BY HOOKED</strong>
+            </div>
+            <div className="badge-status">VERIFIED</div>
+            <div className="identity-data">
+              <div>
+                <span>USER ID</span>
+                <strong>HKD-2026-0826</strong>
+              </div>
+              <div>
+                <span>ENTRY</span>
+                <strong>TRUSTED</strong>
+              </div>
+            </div>
+            <div className="badge-footer">
+              <span>TRUST SCORE</span>
+              <strong>98</strong>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function HardwareDevice() {
+  return (
+    <div className="hardware-device report-folder-stage" aria-label="硬件检测报告视觉">
+      <div className="report-folder-back" aria-hidden="true" />
+      <ReportSheet
+        className="report-sheet report-sheet-secondary report-sheet-fail"
+        status="检测到风险"
+        subtitle="DMA 设备异常"
+        mark="!"
+        risk="高风险"
+        resultClass="risk"
+      />
+      <ReportSheet
+        className="report-sheet report-sheet-secondary report-sheet-review"
+        status="等待复核"
+        subtitle="申诉材料已提交"
+        mark="?"
+        risk="复核中"
+        resultClass="review"
+      />
+      <ReportSheet
+        className="report-sheet report-sheet-main"
+        status="未检测到风险"
+        subtitle="设备环境安全"
+        mark="✓"
+        risk="低风险"
+        resultClass="safe"
+      />
+      <div className="report-folder-front" aria-hidden="true">
+        <span>HARDWARE REPORT FILE</span>
+      </div>
+    </div>
+  );
+}
+
+function ReportSheet({
+  className,
+  status,
+  subtitle,
+  mark,
+  risk,
+  resultClass,
+}: {
+  className: string;
+  status: string;
+  subtitle: string;
+  mark: string;
+  risk: string;
+  resultClass: "safe" | "risk" | "review";
+}) {
+  return (
+    <div className={className}>
+      <div className="report-kicker">HOOKED DETECTION REPORT</div>
+      <div className={`report-state ${resultClass}`}>
+        <span>{mark}</span>
+        <div>
+          <strong>{status}</strong>
+          <small>{subtitle}</small>
+        </div>
+      </div>
+      <dl>
+        <div>
+          <dt>报告编号</dt>
+          <dd>HKD-2026-0826-001</dd>
+        </div>
+        <div>
+          <dt>检测时间</dt>
+          <dd>2026-06-01 14:30</dd>
+        </div>
+        <div>
+          <dt>设备类型</dt>
+          <dd>Desktop</dd>
+        </div>
+        <div>
+          <dt>风险等级</dt>
+          <dd>{risk}</dd>
+        </div>
+      </dl>
+      <div className="device-layers">
+        {["PCIe", "Memory", "USB", "Firmware"].map((label, index) => (
+          <span className={`device-layer device-layer-${index}`} key={label}>{label}</span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+export default App;
