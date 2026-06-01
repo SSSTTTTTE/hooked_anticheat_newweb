@@ -3,6 +3,7 @@ import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import Lenis from "lenis";
 import { AnimatedContent } from "./components/AnimatedContent";
+import GooeyNav from "./components/GooeyNav";
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -528,19 +529,29 @@ function CodeHero() {
 }
 
 function Nav() {
+  const navItems = [
+    { label: "Entry", href: "#entry" },
+    { label: "Scan", href: "#hardware" },
+    { label: "Trust", href: "#trust" },
+    { label: "Query", href: "#query" },
+    { label: "Contact", href: "#contact" },
+  ];
+
   return (
     <header className="nav">
       <a className="brand" href="#top" aria-label="Hooked 首页">
         <DecryptedBrandText texts={["HOOKED", "Anti-Cheat"]} />
         <small>厚壳反作弊</small>
       </a>
-      <nav aria-label="主要导航">
-        <a href="#entry">Entry</a>
-        <a href="#hardware">Scan</a>
-        <a href="#trust">Trust</a>
-        <a href="#query">Query</a>
-        <a href="#contact">Contact</a>
-      </nav>
+      <GooeyNav
+        items={navItems}
+        particleCount={12}
+        particleDistances={[38, 8]}
+        particleR={70}
+        animationTime={420}
+        timeVariance={180}
+        colors={[1, 2, 3, 1, 2, 3, 4]}
+      />
     </header>
   );
 }
@@ -638,8 +649,12 @@ function DecryptedBrandText({ texts }: { texts: [string, string] }) {
 function IdentityCard() {
   const [drag, setDrag] = useState({ x: 0, y: 0, isDragging: false });
   const [sway, setSway] = useState(0);
+  const [strapSpring, setStrapSpring] = useState({ angle: 0, length: 78 });
   const dragRef = useRef(drag);
   const releaseFrameRef = useRef<number | undefined>(undefined);
+  const strapFrameRef = useRef<number | undefined>(undefined);
+  const springStateRef = useRef({ x: 0, y: 0, vx: 0, vy: 0 });
+  const strapSpringRef = useRef({ angle: 0, length: 78, va: 0, vl: 0 });
   const dragStartRef = useRef({
     active: false,
     originX: 0,
@@ -672,6 +687,8 @@ function IdentityCard() {
       startX: event.clientX,
       startY: event.clientY,
     };
+    springStateRef.current.x = drag.x;
+    springStateRef.current.y = drag.y;
     setDrag((current) => ({ ...current, isDragging: true }));
   };
 
@@ -680,32 +697,60 @@ function IdentityCard() {
     dragStartRef.current.pointerId = -1;
     window.cancelAnimationFrame(releaseFrameRef.current ?? 0);
 
-    const start = dragRef.current;
-    const startTime = performance.now();
-    const duration = 520;
+    const spring = springStateRef.current;
+    spring.x = dragRef.current.x;
+    spring.y = dragRef.current.y;
 
-    const animateRelease = (time: number) => {
-      const progress = clampRange((time - startTime) / duration, 0, 1);
-      const eased = 1 - Math.pow(1 - progress, 3);
+    // X: underdamped (bouncy lateral swing)
+    // Y: critically damped (no upward overshoot — strap would break above anchor)
+    const k = 300;
+    const cx = 14;
+    const cy = 2 * Math.sqrt(k);
+    const mass = 1;
+    let lastTime: number | undefined;
+
+    const animateSpring = (time: number) => {
+      if (lastTime === undefined) {
+        lastTime = time;
+        releaseFrameRef.current = window.requestAnimationFrame(animateSpring);
+        return;
+      }
+      const dt = Math.min((time - lastTime) / 1000, 0.032);
+      lastTime = time;
+
+      const ax = (-k * spring.x - cx * spring.vx) / mass;
+      const ay = (-k * spring.y - cy * spring.vy) / mass;
+      spring.vx += ax * dt;
+      spring.vy += ay * dt;
+      spring.x += spring.vx * dt;
+      spring.y += spring.vy * dt;
+
+      // Y never overshoots above resting point — strap would detach
+      if (spring.y < 0) {
+        spring.y = 0;
+        spring.vy = 0;
+      }
+
+      const settled = Math.abs(spring.x) < 0.15 && Math.abs(spring.y) < 0.15
+        && Math.abs(spring.vx) < 0.5 && Math.abs(spring.vy) < 0.5;
+
       const nextDrag = {
-        x: start.x * (1 - eased),
-        y: start.y * (1 - eased),
+        x: settled ? 0 : spring.x,
+        y: settled ? 0 : spring.y,
         isDragging: false,
       };
-
       dragRef.current = nextDrag;
       setDrag(nextDrag);
 
-      if (progress < 1) {
-        releaseFrameRef.current = window.requestAnimationFrame(animateRelease);
+      if (!settled) {
+        releaseFrameRef.current = window.requestAnimationFrame(animateSpring);
       } else {
-        const settled = { x: 0, y: 0, isDragging: false };
-        dragRef.current = settled;
-        setDrag(settled);
+        spring.vx = 0;
+        spring.vy = 0;
       }
     };
 
-    releaseFrameRef.current = window.requestAnimationFrame(animateRelease);
+    releaseFrameRef.current = window.requestAnimationFrame(animateSpring);
   }, []);
 
   const handlePointerUp = (event: ReactPointerEvent<HTMLDivElement>) => {
@@ -727,12 +772,14 @@ function IdentityCard() {
       const nextX = current.originX + event.clientX - current.startX;
       const nextY = current.originY + event.clientY - current.startY;
       const nextDrag = {
-        x: clampDrag(nextX, 112),
-        y: clampRange(nextY, 0, 78),
+        x: clampDrag(nextX, 200),
+        y: clampRange(nextY, 0, 240),
         isDragging: true,
       };
 
       dragRef.current = nextDrag;
+      springStateRef.current.x = nextDrag.x;
+      springStateRef.current.y = nextDrag.y;
       setDrag(nextDrag);
     };
 
@@ -786,17 +833,61 @@ function IdentityCard() {
     };
   }, []);
 
-  const strapTargetX = drag.x;
-  const strapTargetY = 70 + drag.y;
-  const strapLength = Math.hypot(strapTargetX, strapTargetY) + 8;
-  const strapAngle = clampRange(
-    Math.atan2(-strapTargetX, strapTargetY) * (180 / Math.PI) + (drag.isDragging ? 0 : sway * 0.18),
-    -62,
-    62,
-  );
+  // Strap: instant during drag, spring-elastic only after release
+  useEffect(() => {
+    const ks = 200;
+    const cs = 14;
+    const mass = 1;
+    let lastTime: number | undefined;
+
+    const tick = (time: number) => {
+      if (lastTime === undefined) {
+        lastTime = time;
+        strapFrameRef.current = window.requestAnimationFrame(tick);
+        return;
+      }
+      const dt = Math.min((time - lastTime) / 1000, 0.032);
+      lastTime = time;
+
+      const d = dragRef.current;
+      const targetX = d.x;
+      const targetY = Math.max(20, 70 + d.y);
+      const targetLength = Math.max(50, Math.hypot(targetX, targetY) + 8);
+      const targetAngle = clampRange(
+        Math.atan2(-targetX, targetY) * (180 / Math.PI) + (d.isDragging ? 0 : swayRef.current * 0.18),
+        -62,
+        62,
+      );
+
+      const s = strapSpringRef.current;
+
+      if (d.isDragging) {
+        // Instant follow during drag — no lag
+        s.angle = targetAngle;
+        s.length = targetLength;
+        s.va = 0;
+        s.vl = 0;
+      } else {
+        // Spring physics only after release
+        const aa = (-ks * (s.angle - targetAngle) - cs * s.va) / mass;
+        const al = (-ks * (s.length - targetLength) - cs * s.vl) / mass;
+        s.va += aa * dt;
+        s.vl += al * dt;
+        s.angle += s.va * dt;
+        s.length = Math.max(50, s.length + s.vl * dt);
+      }
+
+      setStrapSpring({ angle: s.angle, length: s.length });
+      strapFrameRef.current = window.requestAnimationFrame(tick);
+    };
+
+    strapFrameRef.current = window.requestAnimationFrame(tick);
+    return () => window.cancelAnimationFrame(strapFrameRef.current ?? 0);
+  }, []);
+
   const lanyardStyle = {
-    "--strap-angle": `${strapAngle}deg`,
-    "--strap-length": `${strapLength}px`,
+    "--strap-angle": `${strapSpring.angle}deg`,
+    "--strap-length": `${strapSpring.length}px`,
   } as CSSProperties;
 
   const cardStyle = {

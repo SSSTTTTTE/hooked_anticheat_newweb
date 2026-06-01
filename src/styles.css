@@ -46,7 +46,8 @@ input {
 .nav {
   position: fixed;
   inset: 0 0 auto 0;
-  z-index: 50;
+  z-index: 2147483000;
+  isolation: isolate;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -105,22 +106,6 @@ input {
 .brand small {
   font-size: 12px;
   color: rgba(255, 255, 255, 0.58);
-}
-
-.nav nav {
-  display: flex;
-  gap: clamp(18px, 3vw, 36px);
-}
-
-.nav nav a {
-  font-size: 12px;
-  color: rgba(255, 255, 255, 0.72);
-  letter-spacing: -0.12px;
-  transition: color 180ms ease;
-}
-
-.nav nav a:hover {
-  color: var(--blue-dark);
 }
 
 .section {
@@ -369,7 +354,7 @@ p {
 }
 
 .badge-visual.is-dragging .badge-lanyard {
-  transition: none;
+  /* spring is fully JS-driven, no CSS transition override needed */
 }
 
 .lanyard-band {
@@ -395,7 +380,7 @@ p {
 .badge-drag-plane {
   position: absolute;
   top: 98px;
-  z-index: 3;
+  z-index: 10;
   isolation: isolate;
   cursor: grab;
   touch-action: none;
@@ -1150,14 +1135,6 @@ p {
 
   .brand small {
     display: none;
-  }
-
-  .nav nav {
-    gap: 14px;
-  }
-
-  .nav nav a {
-    font-size: 11px;
   }
 
   .section-inner {
