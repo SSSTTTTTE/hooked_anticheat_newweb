@@ -3,7 +3,10 @@ import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import Lenis from "lenis";
 import { AnimatedContent } from "./components/AnimatedContent";
+import BorderGlow from "./components/BorderGlow";
+import BlurText from "./components/BlurText";
 import GooeyNav from "./components/GooeyNav";
+import Shuffle from "./components/Shuffle";
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -42,6 +45,32 @@ const trustSteps = [
 
 const decryptCharacters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()_+";
 
+type AnimatedTextProps = {
+  as?: "p" | "h1" | "h2" | "h3" | "strong";
+  text: string;
+  className?: string;
+  delay?: number;
+};
+
+function AnimatedText({
+  as = "p",
+  text,
+  className = "",
+  delay = 150,
+}: AnimatedTextProps) {
+  return (
+    <BlurText
+      as={as}
+      text={text}
+      delay={delay}
+      animateBy="lines"
+      direction="top"
+      threshold={0.16}
+      className={["blur-text", className].filter(Boolean).join(" ")}
+    />
+  );
+}
+
 function App() {
   useEffect(() => {
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -57,46 +86,114 @@ function App() {
       wheelMultiplier: 0.9,
     });
 
-    lenis.on("scroll", ScrollTrigger.update);
     gsap.ticker.add((time) => lenis.raf(time * 1000));
     gsap.ticker.lagSmoothing(0);
 
-    let snapTimer: number | undefined;
-    let shouldSnapFirstScreens = false;
-    const enableSnap = () => {
-      shouldSnapFirstScreens = true;
-    };
-    const snapFirstScreens = () => {
-      if (!shouldSnapFirstScreens) {
-        return;
-      }
+    let isSnapping = false;
+    let touchStartY = 0;
+    let touchStartTime = 0;
 
+    const getSnapTargets = () => Array.from(
+      document.querySelectorAll<HTMLElement>("main > .section, main > footer.contact"),
+    );
+
+    const getCurrentIndex = (targets: HTMLElement[]) => {
       const y = window.scrollY;
-      const firstScreenHeight = window.innerHeight;
+      const viewport = window.innerHeight;
+      const maxScroll = document.documentElement.scrollHeight - viewport;
+      let closest = 0;
+      let minDist = Infinity;
+      targets.forEach((target, index) => {
+        const top = Math.max(0, Math.min(maxScroll, target.offsetTop));
+        const dist = Math.abs(top - y);
+        if (dist < minDist) {
+          minDist = dist;
+          closest = index;
+        }
+      });
+      return closest;
+    };
 
-      if (y <= 8 || y >= firstScreenHeight - 8) {
-        shouldSnapFirstScreens = false;
+    const snapToIndex = (index: number, targets: HTMLElement[]) => {
+      if (isSnapping) return;
+      const viewport = window.innerHeight;
+      const maxScroll = document.documentElement.scrollHeight - viewport;
+      const clamped = Math.max(0, Math.min(targets.length - 1, index));
+      const targetY = Math.max(0, Math.min(maxScroll, targets[clamped].offsetTop));
+      const y = window.scrollY;
+      if (Math.abs(y - targetY) < 4) return;
+
+      const distance = Math.abs(targetY - y);
+      const duration = Math.max(0.68, Math.min(1.0, distance / viewport * 0.72));
+
+      isSnapping = true;
+      lenis.scrollTo(targetY, {
+        duration,
+        easing: (t: number) => 1 - Math.pow(1 - t, 3),
+        onComplete: () => {
+          isSnapping = false;
+          ScrollTrigger.update();
+        },
+      });
+    };
+
+    const handleWheel = (event: WheelEvent) => {
+      if (isSnapping) {
+        event.preventDefault();
+        return;
+      }
+      const targets = getSnapTargets();
+      if (targets.length < 2) return;
+
+      const current = getCurrentIndex(targets);
+      const dir = event.deltaY > 0 ? 1 : -1;
+      const next = Math.max(0, Math.min(targets.length - 1, current + dir));
+      if (next === current) return;
+
+      event.preventDefault();
+      snapToIndex(next, targets);
+    };
+
+    const handleTouchStart = (event: TouchEvent) => {
+      touchStartY = event.touches[0]?.clientY ?? 0;
+      touchStartTime = Date.now();
+    };
+
+    const handleTouchEnd = (event: TouchEvent) => {
+      if (isSnapping) return;
+      const endY = event.changedTouches[0]?.clientY ?? touchStartY;
+      const deltaY = touchStartY - endY;
+      const elapsed = Date.now() - touchStartTime;
+      const velocity = Math.abs(deltaY) / elapsed;
+
+      // require meaningful swipe: 50px or 0.3px/ms velocity
+      if (Math.abs(deltaY) < 50 && velocity < 0.3) {
+        // small movement — snap to nearest without advancing
+        const targets = getSnapTargets();
+        if (targets.length < 2) return;
+        const current = getCurrentIndex(targets);
+        snapToIndex(current, targets);
         return;
       }
 
-      window.clearTimeout(snapTimer);
-      snapTimer = window.setTimeout(() => {
-        const currentY = window.scrollY;
-
-        if (currentY > 8 && currentY < firstScreenHeight - 8) {
-          lenis.scrollTo(currentY < firstScreenHeight * 0.5 ? 0 : firstScreenHeight, {
-            duration: 0.62,
-            easing: (t: number) => 1 - Math.pow(1 - t, 3),
-          });
-        }
-
-        shouldSnapFirstScreens = false;
-      }, 110);
+      const targets = getSnapTargets();
+      if (targets.length < 2) return;
+      const current = getCurrentIndex(targets);
+      const dir = deltaY > 0 ? 1 : -1;
+      const next = Math.max(0, Math.min(targets.length - 1, current + dir));
+      snapToIndex(next, targets);
     };
 
-    window.addEventListener("wheel", enableSnap, { passive: true });
-    window.addEventListener("touchmove", enableSnap, { passive: true });
-    lenis.on("scroll", snapFirstScreens);
+    const handleLenisScroll = () => {
+      ScrollTrigger.update();
+    };
+
+    lenis.on("scroll", handleLenisScroll);
+
+    window.addEventListener("wheel", handleWheel, { passive: false });
+    window.addEventListener("touchstart", handleTouchStart, { passive: true });
+    window.addEventListener("touchend", handleTouchEnd, { passive: true });
+
     const scrollToHash = (hash: string, immediate = false) => {
       if (!hash) {
         return;
@@ -135,40 +232,45 @@ function App() {
         },
       );
 
-      ScrollTrigger.matchMedia({
-        "(min-width: 900px)": () => {
-          const timeline = gsap.timeline({
-            scrollTrigger: {
-              trigger: ".hardware",
-              start: "top top",
-              end: "+=1700",
-              pin: true,
-              scrub: 0.7,
-            },
-          });
+      gsap.to(".code-hero-fade", {
+        opacity: 1,
+        ease: "none",
+        scrollTrigger: {
+          trigger: ".code-hero-section",
+          start: "top top",
+          end: "bottom top",
+          scrub: true,
+        },
+      });
 
-          timeline
-            .to(".hardware-device", { rotateX: 0, y: -10, duration: 0.35 })
-            .to(".scan-step-0, .device-layer-0", { opacity: 1, color: "#2997ff", duration: 0.25 })
-            .to(".scan-step-1, .device-layer-1", { opacity: 1, color: "#2997ff", duration: 0.25 })
-            .to(".scan-step-2, .device-layer-2", { opacity: 1, color: "#2997ff", duration: 0.25 })
-            .to(".scan-step-3, .device-layer-3", { opacity: 1, color: "#2997ff", duration: 0.25 })
-            .to(".report-state", { opacity: 1, y: 0, duration: 0.4 });
+      gsap.to(".code-hero-canvas", {
+        opacity: 0.16,
+        ease: "none",
+        scrollTrigger: {
+          trigger: ".code-hero-section",
+          start: "top top",
+          end: "bottom top",
+          scrub: true,
         },
       });
 
       gsap.timeline({
         scrollTrigger: {
           trigger: ".hardware",
-          start: "top 78%",
-          end: "top 12%",
-          scrub: 0.7,
+          start: "top 50%",
+          toggleActions: "play none none reverse",
         },
       })
-        .to(".report-folder-front", { y: 72, rotationX: 23, ease: "power2.out", duration: 0.7 }, 0)
-        .to(".report-sheet-main", { y: -34, scale: 1, rotationX: 4, rotationY: -7, rotationZ: 0.6, opacity: 1, ease: "power3.out", duration: 1 }, 0.08)
-        .to(".report-sheet-fail", { x: -56, y: 2, rotation: -7, opacity: 0.82, ease: "power2.out", duration: 0.9 }, 0.16)
-        .to(".report-sheet-review", { x: 50, y: 12, rotation: 6, opacity: 0.72, ease: "power2.out", duration: 0.9 }, 0.2);
+        .to(".hardware-device", { rotateX: 0, y: -10, duration: 0.35, ease: "power2.out" }, 0)
+        .to(".scan-step-0, .device-layer-0", { opacity: 1, color: "#2997ff", duration: 0.18 }, 0.08)
+        .to(".scan-step-1, .device-layer-1", { opacity: 1, color: "#2997ff", duration: 0.18 }, 0.18)
+        .to(".scan-step-2, .device-layer-2", { opacity: 1, color: "#2997ff", duration: 0.18 }, 0.28)
+        .to(".scan-step-3, .device-layer-3", { opacity: 1, color: "#2997ff", duration: 0.18 }, 0.38)
+        .to(".report-state", { opacity: 1, y: 0, duration: 0.28 }, 0.44)
+        .to(".report-folder-front", { y: () => (window.innerWidth < 720 ? 54 : 72), rotationX: 23, ease: "power2.out", duration: 0.7 }, 0)
+        .to(".report-sheet-main", { y: () => (window.innerWidth < 720 ? -24 : -30), scale: () => (window.innerWidth < 720 ? 0.98 : 1.08), rotationX: 4, rotationY: -7, rotationZ: 0.4, opacity: 1, ease: "power3.out", duration: 1 }, 0.08)
+        .to(".report-sheet-fail", { x: () => (window.innerWidth < 720 ? -86 : -164), y: () => (window.innerWidth < 720 ? 0 : -8), rotation: -10, opacity: 0.8, ease: "power2.out", duration: 0.9 }, 0.16)
+        .to(".report-sheet-review", { x: () => (window.innerWidth < 720 ? 82 : 154), y: () => (window.innerWidth < 720 ? 8 : 4), rotation: 9, opacity: 0.74, ease: "power2.out", duration: 0.9 }, 0.2);
 
       gsap.to(".timeline-fill", {
         width: "100%",
@@ -200,11 +302,11 @@ function App() {
     });
 
     return () => {
-      window.clearTimeout(snapTimer);
-      window.removeEventListener("wheel", enableSnap);
-      window.removeEventListener("touchmove", enableSnap);
+      window.removeEventListener("wheel", handleWheel);
+      window.removeEventListener("touchstart", handleTouchStart);
+      window.removeEventListener("touchend", handleTouchEnd);
       window.removeEventListener("hashchange", handleHashChange);
-      lenis.off("scroll", snapFirstScreens);
+      lenis.off("scroll", handleLenisScroll);
       ctx.revert();
       lenis.destroy();
     };
@@ -220,15 +322,12 @@ function App() {
       <section className="section hero product-hero" id="overview">
         <div className="section-inner hero-grid">
           <AnimatedContent className="hero-copy" distance={20}>
-            <p className="eyebrow">Hooked Anti-Cheat</p>
-            <h1>
-              让每一次上场，
-              <br />
-              都经得起验证。
-            </h1>
-            <p className="hero-subtitle">
-              Hooked 厚壳反作弊，为陪玩与代练平台建立可信的玩家准入标准。
-            </p>
+            <AnimatedText className="eyebrow" text="Hooked Anti-Cheat" />
+            <AnimatedText as="h1" delay={170} text="让每一次上场，都经得起验证。" />
+            <AnimatedText
+              className="hero-subtitle"
+              text="Hooked 厚壳反作弊，为陪玩与代练平台建立可信的玩家准入标准。"
+            />
             <div className="hero-actions">
               <a className="button button-primary" href="#contact">预约服务</a>
               <a className="button button-secondary" href="#query">查看检测结果</a>
@@ -243,11 +342,9 @@ function App() {
       <section className="section entry" id="entry">
         <div className="section-inner">
           <AnimatedContent className="section-heading">
-            <p className="eyebrow">Entry Screening</p>
-            <h2>先筛选，再入驻。</h2>
-            <p>
-              从玩家身份、设备环境到游戏行为，Hooked 将准入检测前置，帮助平台在服务开始前识别风险。
-            </p>
+            <AnimatedText className="eyebrow" text="Entry Screening" />
+            <AnimatedText as="h2" delay={160} text="先筛选，再入驻。" />
+            <AnimatedText text="从玩家身份、设备环境到游戏行为，Hooked 将准入检测前置，帮助平台在服务开始前识别风险。" />
           </AnimatedContent>
           <div className="feature-row">
             {entryFeatures.map((feature, index) => (
@@ -257,8 +354,8 @@ function App() {
                 key={feature.title}
               >
                 <span>{String(index + 1).padStart(2, "0")}</span>
-                <h3>{feature.title}</h3>
-                <p>{feature.body}</p>
+                <AnimatedText as="h3" delay={130} text={feature.title} />
+                <AnimatedText text={feature.body} />
               </AnimatedContent>
             ))}
           </div>
@@ -268,17 +365,15 @@ function App() {
       <section className="section hardware" id="hardware">
         <div className="section-inner hardware-grid">
           <AnimatedContent className="dark-copy">
-            <p className="eyebrow">Hardware Scan</p>
-            <h2>让硬件外挂无处伪装。</h2>
-            <p>
-              针对 DMA 硬件外挂与底层设备伪装，建立从总线枚举到固件签名的多层扫描链路。
-            </p>
+            <AnimatedText className="eyebrow" text="Hardware Scan" />
+            <AnimatedText as="h2" delay={160} text="让硬件外挂无处伪装。" />
+            <AnimatedText text="针对 DMA 硬件外挂与底层设备伪装，建立从总线枚举到固件签名的多层扫描链路。" />
             <div className="scan-list" aria-label="硬件扫描层级">
               {hardwareLayers.map(([label, title, body], index) => (
                 <div className={`scan-step scan-step-${index}`} key={label}>
                   <span>{label}</span>
-                  <strong>{title}</strong>
-                  <p>{body}</p>
+                  <AnimatedText as="strong" delay={100} text={title} />
+                  <AnimatedText delay={120} text={body} />
                 </div>
               ))}
             </div>
@@ -290,11 +385,9 @@ function App() {
       <section className="section trust" id="trust">
         <div className="section-inner">
           <AnimatedContent className="section-heading centered">
-            <p className="eyebrow">Trust Layer</p>
-            <h2>真实力，无需伪装。</h2>
-            <p>
-              检测不是一次性拦截，而是一套让平台、玩家与申诉流程都能被看见的信任机制。
-            </p>
+            <AnimatedText className="eyebrow" text="Trust Layer" />
+            <AnimatedText as="h2" delay={160} text="真实力，无需伪装。" />
+            <AnimatedText text="检测不是一次性拦截，而是一套让平台、玩家与申诉流程都能被看见的信任机制。" />
           </AnimatedContent>
           <div className="trust-track">
             <div className="timeline-base">
@@ -304,8 +397,8 @@ function App() {
               {trustSteps.map(([title, body], index) => (
                 <div className="trust-step" key={title}>
                   <span>{String(index + 1).padStart(2, "0")}</span>
-                  <h3>{title}</h3>
-                  <p>{body}</p>
+                  <AnimatedText as="h3" delay={130} text={title} />
+                  <AnimatedText text={body} />
                 </div>
               ))}
             </div>
@@ -316,30 +409,43 @@ function App() {
       <section className="section query" id="query">
         <div className="section-inner query-grid">
           <AnimatedContent className="section-heading">
-            <p className="eyebrow">Verification Query</p>
-            <h2>
-              每一次检测，
-              <br />
-              都可以被追溯。
-            </h2>
-            <p>
-              检测报告实时更新，支持历史追溯、详细报告查看与异常状态复核，让结果清晰可查。
-            </p>
+            <AnimatedText className="eyebrow" text="Verification Query" />
+            <AnimatedText as="h2" delay={160} text="每一次检测，都可以被追溯。" />
+            <AnimatedText text="检测报告实时更新，支持历史追溯、详细报告查看与异常状态复核，让结果清晰可查。" />
           </AnimatedContent>
-          <AnimatedContent className="query-card" scale={0.97}>
-            <div>
-              <p className="query-label">检测结果查询</p>
-              <h3>输入报告编号，查看完整验证状态。</h3>
-            </div>
-            <form onSubmit={(event) => event.preventDefault()}>
-              <input aria-label="报告编号" placeholder="例如：HKD-2026-0826-001" />
-              <button className="button button-primary" type="submit">立即查询</button>
-            </form>
-            <div className="query-meta">
-              <span>实时更新</span>
-              <span>历史追溯</span>
-              <span>详细报告</span>
-            </div>
+          <AnimatedContent className="query-card-shell" scale={0.97}>
+            <BorderGlow
+              className="query-card"
+              edgeSensitivity={46}
+              glowColor="202 100 70"
+              backgroundColor="transparent"
+              borderRadius={32}
+              glowRadius={16}
+              glowIntensity={1.55}
+              coneSpread={30}
+              animated={false}
+              colors={["#38bdf8", "#f8fafc", "#c084fc"]}
+              fillOpacity={0.34}
+            >
+              <div className="query-card-top">
+                <div className="query-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24">
+                    <path d="M12 3.1 5.1 5.7v5.5c0 4.4 2.9 8.4 6.9 9.7 4-1.3 6.9-5.3 6.9-9.7V5.7L12 3.1Z" />
+                    <path d="m9.3 12.1 1.8 1.8 3.9-4" />
+                  </svg>
+                </div>
+                <div>
+                  <AnimatedText className="query-label" text="检测结果查询" />
+                  <AnimatedText as="h3" delay={150} text="输入报告编号，查看完整验证状态。" />
+                </div>
+              </div>
+              <form onSubmit={(event) => event.preventDefault()}>
+                <label className="query-input-wrap">
+                  <input aria-label="报告编号" placeholder="例如：HKD-2026-0826-001" />
+                </label>
+                <button className="button button-primary" type="submit">立即查询</button>
+              </form>
+            </BorderGlow>
           </AnimatedContent>
         </div>
       </section>
@@ -347,11 +453,9 @@ function App() {
       <footer className="contact" id="contact">
         <div className="section-inner contact-grid">
           <AnimatedContent className="contact-copy">
-            <p className="eyebrow">Contact</p>
-            <h2>为你的平台建立反作弊准入标准。</h2>
-            <p>
-              留下平台规模与检测需求，我们会协助配置入驻检测、结果查询与申诉流程。
-            </p>
+            <AnimatedText className="eyebrow" text="Contact" />
+            <AnimatedText as="h2" delay={160} text="为你的平台建立反作弊准入标准。" />
+            <AnimatedText text="留下平台规模与检测需求，我们会协助配置入驻检测、结果查询与申诉流程。" />
             <a className="button button-primary" href="#contact">预约服务</a>
           </AnimatedContent>
           <AnimatedContent className="contact-info">
@@ -497,17 +601,6 @@ function CodeHero() {
       }
       context.restore();
 
-      context.save();
-      const fontSize = Math.min(width * 0.23, height * 0.3);
-      context.font = `800 ${fontSize}px system-ui, -apple-system, BlinkMacSystemFont, sans-serif`;
-      context.textAlign = "center";
-      context.textBaseline = "alphabetic";
-      context.fillStyle = "rgba(220, 218, 200, 0.58)";
-      context.shadowColor = "rgba(255,255,255,0.08)";
-      context.shadowBlur = 20;
-      context.fillText("Hooked", width * 0.5, height + fontSize * 0.04);
-      context.restore();
-
       animationFrame = window.requestAnimationFrame(draw);
     };
 
@@ -524,6 +617,22 @@ function CodeHero() {
   return (
     <div className="code-hero-shell" aria-label="Hooked 数字验证首屏视觉">
       <canvas ref={canvasRef} className="code-hero-canvas" />
+      <Shuffle
+        className="code-hero-title"
+        tag="div"
+        text="Hooked"
+        shuffleDirection="right"
+        duration={0.35}
+        animationMode="evenodd"
+        shuffleTimes={1}
+        ease="power3.out"
+        stagger={0.03}
+        threshold={0.1}
+        triggerOnce
+        triggerOnHover
+        respectReducedMotion
+      />
+      <div className="code-hero-fade" aria-hidden="true" />
     </div>
   );
 }
@@ -952,7 +1061,6 @@ function IdentityCard() {
 function HardwareDevice() {
   return (
     <div className="hardware-device report-folder-stage" aria-label="硬件检测报告视觉">
-      <div className="report-folder-back" aria-hidden="true" />
       <ReportSheet
         className="report-sheet report-sheet-secondary report-sheet-fail"
         status="检测到风险"

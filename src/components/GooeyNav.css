@@ -48,7 +48,7 @@
   padding: 0;
   margin: 0;
   position: relative;
-  z-index: 3;
+  z-index: 5;
   color: white;
   text-shadow: 0 1px 1px hsl(205deg 30% 10% / 0.2);
 }
@@ -95,13 +95,21 @@
 }
 
 .gooey-nav-container nav ul li.active {
-  color: black;
+  color: #1d1d1f;
+  text-shadow: none;
+}
+
+.gooey-nav-container nav ul li.active a {
+  position: relative;
+  z-index: 6;
+  color: #1d1d1f !important;
   text-shadow: none;
 }
 
 .gooey-nav-container nav ul li.active::after {
   opacity: 1;
   transform: scale(1);
+  animation: active-pill-pop 360ms var(--linear-ease) both;
 }
 
 .gooey-nav-container .effect {
@@ -117,7 +125,13 @@
   z-index: 1;
 }
 
+.gooey-nav-container .effect.filter {
+  filter: blur(7px) contrast(100) blur(0);
+  mix-blend-mode: lighten;
+}
+
 .gooey-nav-container .effect.text {
+  display: none;
   color: white;
   transition: color 0.3s ease;
 }
@@ -126,28 +140,12 @@
   color: black;
 }
 
-.gooey-nav-container .effect.filter {
-  filter: blur(7px) contrast(100) blur(0);
-  mix-blend-mode: lighten;
-}
-
 .gooey-nav-container .effect.filter::before {
-  content: "";
-  position: absolute;
-  inset: -75px;
-  z-index: -2;
-  background: black;
+  display: none;
 }
 
 .gooey-nav-container .effect.filter::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: white;
-  transform: scale(0);
-  opacity: 0;
-  z-index: -1;
-  border-radius: 100vw;
+  display: none;
 }
 
 .gooey-nav-container .effect.active::after {
@@ -158,6 +156,23 @@
   to {
     transform: scale(1);
     opacity: 1;
+  }
+}
+
+@keyframes active-pill-pop {
+  0% {
+    opacity: 0;
+    transform: scale(0.72);
+  }
+
+  62% {
+    opacity: 1;
+    transform: scale(1.08);
+  }
+
+  100% {
+    opacity: 1;
+    transform: scale(1);
   }
 }
 

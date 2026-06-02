@@ -1,0 +1,97 @@
+.border-glow-card {
+  --edge-proximity: 0;
+  --cursor-angle: 45deg;
+  --edge-alpha: calc(var(--edge-proximity) / 100);
+  position: relative;
+  isolation: isolate;
+  overflow: visible;
+  border-radius: var(--border-radius);
+  background: var(--card-bg);
+  transform: translateZ(0);
+}
+
+.border-glow-card::before,
+.border-glow-card::after,
+.border-glow-card .edge-light {
+  content: "";
+  position: absolute;
+  pointer-events: none;
+  border-radius: inherit;
+}
+
+.border-glow-card::before {
+  display: none;
+}
+
+.border-glow-card::after {
+  inset: 0;
+  z-index: 2;
+  padding: 1px;
+  background:
+    linear-gradient(135deg, rgba(148, 163, 184, 0.48), rgba(255, 255, 255, 0.5) 44%, rgba(192, 132, 252, 0.36) 100%),
+    conic-gradient(
+      from calc(var(--cursor-angle) - (var(--cone-spread) * 1deg)),
+      rgba(255, 255, 255, 0) 0deg,
+      var(--glow-color-20) calc((var(--cone-spread) * 0.46) * 1deg),
+      var(--glow-color-60) calc(var(--cone-spread) * 1deg),
+      var(--glow-color) calc((var(--cone-spread) * 1.24) * 1deg),
+      var(--glow-color-20) calc((var(--cone-spread) * 1.66) * 1deg),
+      rgba(255, 255, 255, 0) calc((var(--cone-spread) * 2.08) * 1deg)
+    );
+  mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  opacity: calc(0.42 + var(--edge-alpha) * 0.58);
+  transition: opacity 180ms ease;
+}
+
+.border-glow-card .edge-light {
+  inset: calc(var(--glow-padding) * -1);
+  z-index: 1;
+  opacity: calc(var(--edge-alpha) * 0.95);
+  mix-blend-mode: screen;
+  transition: opacity 160ms ease;
+  mask-image:
+    conic-gradient(
+      from var(--cursor-angle) at center,
+      #000 0%,
+      transparent 9%,
+      transparent 91%,
+      #000 100%
+    );
+  -webkit-mask-image:
+    conic-gradient(
+      from var(--cursor-angle) at center,
+      #000 0%,
+      transparent 9%,
+      transparent 91%,
+      #000 100%
+    );
+}
+
+.border-glow-card .edge-light::before {
+  content: "";
+  position: absolute;
+  inset: var(--glow-padding);
+  border-radius: inherit;
+  box-shadow:
+    0 0 10px 1px var(--glow-color-50),
+    0 0 22px 3px var(--glow-color-30);
+}
+
+.border-glow-inner {
+  position: relative;
+  z-index: 3;
+  height: 100%;
+  border-radius: inherit;
+}
+
+.border-glow-card.sweep-active .edge-light,
+.border-glow-card.sweep-active::after {
+  transition: opacity 180ms ease;
+}
