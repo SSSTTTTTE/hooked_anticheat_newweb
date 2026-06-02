@@ -5,6 +5,8 @@ import Lenis from "lenis";
 import { AnimatedContent } from "./components/AnimatedContent";
 import BorderGlow from "./components/BorderGlow";
 import BlurText from "./components/BlurText";
+import CardSwap, { Card } from "./components/CardSwap";
+import Crosshair from "./components/Crosshair";
 import GooeyNav from "./components/GooeyNav";
 import Shuffle from "./components/Shuffle";
 
@@ -12,7 +14,7 @@ gsap.registerPlugin(ScrollTrigger);
 
 const entryFeatures = [
   {
-    title: "智能行为分析",
+    title: "智能分析检查",
     body: "基于历史对局、接单节奏与平台行为，识别异常成长曲线与非自然表现。",
   },
   {
@@ -72,6 +74,8 @@ function AnimatedText({
 }
 
 function App() {
+  const contactRef = useRef<HTMLElement | null>(null);
+
   useEffect(() => {
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
@@ -209,7 +213,24 @@ function App() {
       }
     };
     const handleHashChange = () => scrollToHash(window.location.hash);
+    const handleAnchorClick = (event: MouseEvent) => {
+      if (!(event.target instanceof Element)) return;
 
+      const anchor = event.target.closest<HTMLAnchorElement>('a[href^="#"]');
+      const hash = anchor?.getAttribute("href");
+      if (!hash || hash === "#") return;
+
+      const target = document.querySelector(hash);
+      if (!target) return;
+
+      event.preventDefault();
+      if (window.location.hash !== hash) {
+        window.history.pushState(null, "", hash);
+      }
+      scrollToHash(hash);
+    };
+
+    document.addEventListener("click", handleAnchorClick);
     window.addEventListener("hashchange", handleHashChange);
     window.setTimeout(() => scrollToHash(window.location.hash, true), 60);
 
@@ -305,6 +326,7 @@ function App() {
       window.removeEventListener("wheel", handleWheel);
       window.removeEventListener("touchstart", handleTouchStart);
       window.removeEventListener("touchend", handleTouchEnd);
+      document.removeEventListener("click", handleAnchorClick);
       window.removeEventListener("hashchange", handleHashChange);
       lenis.off("scroll", handleLenisScroll);
       ctx.revert();
@@ -346,19 +368,35 @@ function App() {
             <AnimatedText as="h2" delay={160} text="先筛选，再入驻。" />
             <AnimatedText text="从玩家身份、设备环境到游戏行为，Hooked 将准入检测前置，帮助平台在服务开始前识别风险。" />
           </AnimatedContent>
-          <div className="feature-row">
-            {entryFeatures.map((feature, index) => (
-              <AnimatedContent
-                className="feature-block"
-                delay={index * 0.05}
-                key={feature.title}
-              >
-                <span>{String(index + 1).padStart(2, "0")}</span>
-                <AnimatedText as="h3" delay={130} text={feature.title} />
-                <AnimatedText text={feature.body} />
-              </AnimatedContent>
-            ))}
-          </div>
+          <AnimatedContent className="feature-row">
+            <CardSwap
+              width={520}
+              height={360}
+              cardDistance={70}
+              verticalDistance={58}
+              delay={3000}
+              pauseOnHover={false}
+              skewAmount={4}
+            >
+              {entryFeatures.map((feature, index) => (
+                <Card
+                  customClass={`entry-feature-card entry-feature-card-${index}`}
+                  key={feature.title}
+                >
+                  <div className="entry-feature-card-top">
+                    <span className="entry-feature-icon" aria-hidden="true">
+                      <EntryFeatureIcon index={index} />
+                    </span>
+                    <h3>{feature.title}</h3>
+                  </div>
+                  <div className="entry-feature-card-body">
+                    <span>{String(index + 1).padStart(2, "0")}</span>
+                    <p>{feature.body}</p>
+                  </div>
+                </Card>
+              ))}
+            </CardSwap>
+          </AnimatedContent>
         </div>
       </section>
 
@@ -450,13 +488,13 @@ function App() {
         </div>
       </section>
 
-      <footer className="contact" id="contact">
+      <footer className="contact" id="contact" ref={contactRef}>
         <div className="section-inner contact-grid">
           <AnimatedContent className="contact-copy">
             <AnimatedText className="eyebrow" text="Contact" />
             <AnimatedText as="h2" delay={160} text="为你的平台建立反作弊准入标准。" />
             <AnimatedText text="留下平台规模与检测需求，我们会协助配置入驻检测、结果查询与申诉流程。" />
-            <a className="button button-primary" href="#contact">预约服务</a>
+            <ContactCta />
           </AnimatedContent>
           <AnimatedContent className="contact-info">
             <div>
@@ -475,8 +513,32 @@ function App() {
           <span>© 2026 Hooked 厚壳反作弊</span>
           <span>服务条款 · 隐私政策</span>
         </div>
+        <Crosshair containerRef={contactRef} color="#f5f5f7" targetSelector=".contact-cta-crosshair .button" />
       </footer>
     </main>
+  );
+}
+
+function ContactCta() {
+  return (
+    <div className="contact-cta-crosshair">
+      <a className="button button-primary" href="#contact">预约服务</a>
+    </div>
+  );
+}
+
+function EntryFeatureIcon({ index }: { index: number }) {
+  const paths = [
+    "M5 12h2m10 0h2M12 5v2m0 10v2m-4.2-3.8-1.4 1.4m10.2-10.2-1.4 1.4m0 7.4 1.4 1.4M6.4 6.4l1.4 1.4M9 12a3 3 0 1 0 6 0 3 3 0 0 0-6 0Z",
+    "M4 14c2.4-5.2 6.6-7.4 12.4-6.7M6.6 18c1.5-3.4 4.2-5.2 8.1-5.5m-1.9 5.9h5.4m-2.7-2.7v5.4",
+    "M6 8h12M6 12h12M6 16h7m-9-8h.01m-.01 4h.01m-.01 4h.01",
+    "M12 3.8 5.2 6.4v5.4c0 4.2 2.8 8 6.8 9.1 4-1.1 6.8-4.9 6.8-9.1V6.4L12 3.8Zm-2.2 8.4 1.7 1.7 3.8-4",
+  ];
+
+  return (
+    <svg viewBox="0 0 24 24" focusable="false">
+      <path d={paths[index]} />
+    </svg>
   );
 }
 
