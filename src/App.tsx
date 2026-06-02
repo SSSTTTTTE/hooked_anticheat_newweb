@@ -9,6 +9,7 @@ import CardSwap, { Card } from "./components/CardSwap";
 import Crosshair from "./components/Crosshair";
 import GooeyNav from "./components/GooeyNav";
 import Shuffle from "./components/Shuffle";
+import ScrollStack, { ScrollStackItem } from "./components/ScrollStack";
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -146,6 +147,26 @@ function App() {
         event.preventDefault();
         return;
       }
+
+      const stackScroller = event.target instanceof Element
+        ? event.target.closest<HTMLElement>(".scroll-stack-scroller")
+        : null;
+      if (stackScroller) {
+        const stackAt = stackScroller.dataset.scrollStackAt;
+        const shouldKeepStackScroll =
+          (event.deltaY > 0 && stackAt !== "end") ||
+          (event.deltaY < 0 && stackAt !== "start");
+
+        if (shouldKeepStackScroll) {
+          stackScroller.dispatchEvent(new CustomEvent("scroll-stack-control", { detail: "start" }));
+          return;
+        }
+
+        stackScroller.dispatchEvent(new CustomEvent("scroll-stack-control", { detail: "stop" }));
+        event.preventDefault();
+        event.stopImmediatePropagation();
+      }
+
       const targets = getSnapTargets();
       if (targets.length < 2) return;
 
@@ -194,7 +215,9 @@ function App() {
 
     lenis.on("scroll", handleLenisScroll);
 
-    window.addEventListener("wheel", handleWheel, { passive: false });
+    const wheelOptions: AddEventListenerOptions = { passive: false, capture: true };
+
+    window.addEventListener("wheel", handleWheel, wheelOptions);
     window.addEventListener("touchstart", handleTouchStart, { passive: true });
     window.addEventListener("touchend", handleTouchEnd, { passive: true });
 
@@ -293,37 +316,10 @@ function App() {
         .to(".report-sheet-fail", { x: () => (window.innerWidth < 720 ? -86 : -164), y: () => (window.innerWidth < 720 ? 0 : -8), rotation: -10, opacity: 0.8, ease: "power2.out", duration: 0.9 }, 0.16)
         .to(".report-sheet-review", { x: () => (window.innerWidth < 720 ? 82 : 154), y: () => (window.innerWidth < 720 ? 8 : 4), rotation: 9, opacity: 0.74, ease: "power2.out", duration: 0.9 }, 0.2);
 
-      gsap.to(".timeline-fill", {
-        width: "100%",
-        ease: "none",
-        scrollTrigger: {
-          trigger: ".trust",
-          start: "top 62%",
-          end: "bottom 52%",
-          scrub: true,
-        },
-      });
-
-      gsap.fromTo(
-        ".trust-step",
-        { autoAlpha: 0.35, y: 18 },
-        {
-          autoAlpha: 1,
-          y: 0,
-          stagger: 0.16,
-          ease: "power2.out",
-          scrollTrigger: {
-            trigger: ".trust-track",
-            start: "top 72%",
-            end: "bottom 54%",
-            scrub: true,
-          },
-        },
-      );
     });
 
     return () => {
-      window.removeEventListener("wheel", handleWheel);
+      window.removeEventListener("wheel", handleWheel, wheelOptions);
       window.removeEventListener("touchstart", handleTouchStart);
       window.removeEventListener("touchend", handleTouchEnd);
       document.removeEventListener("click", handleAnchorClick);
@@ -427,19 +423,27 @@ function App() {
             <AnimatedText as="h2" delay={160} text="真实力，无需伪装。" />
             <AnimatedText text="检测不是一次性拦截，而是一套让平台、玩家与申诉流程都能被看见的信任机制。" />
           </AnimatedContent>
-          <div className="trust-track">
-            <div className="timeline-base">
-              <div className="timeline-fill" />
-            </div>
-            <div className="trust-steps">
+          <div className="trust-stack-shell">
+            <ScrollStack
+              className="trust-scroll-stack"
+              itemDistance={84}
+              itemScale={0.025}
+              itemStackDistance={26}
+              stackPosition="7%"
+              scaleEndPosition="6%"
+              baseScale={0.9}
+            >
               {trustSteps.map(([title, body], index) => (
-                <div className="trust-step" key={title}>
-                  <span>{String(index + 1).padStart(2, "0")}</span>
-                  <AnimatedText as="h3" delay={130} text={title} />
-                  <AnimatedText text={body} />
-                </div>
+                <ScrollStackItem itemClassName="trust-stack-card" key={title}>
+                  <div className="trust-stack-card-top">
+                    <span>{String(index + 1).padStart(2, "0")}</span>
+                    <i aria-hidden="true" />
+                  </div>
+                  <h3>{title}</h3>
+                  <p>{body}</p>
+                </ScrollStackItem>
               ))}
-            </div>
+            </ScrollStack>
           </div>
         </div>
       </section>

@@ -39,6 +39,32 @@ const buildKeyframes = (from: AnimationSnapshot, steps: AnimationSnapshot[]) => 
   return keyframes;
 };
 
+const splitByCommaBreakpoints = (text: string) => {
+  const characters = Array.from(text);
+  const segments: string[] = [];
+  let current = "";
+
+  for (let index = 0; index < characters.length; index += 1) {
+    const character = characters[index];
+    current += character;
+
+    if (character === "，" || character === ",") {
+      while (characters[index + 1] === " ") {
+        index += 1;
+        current += characters[index];
+      }
+      segments.push(current);
+      current = "";
+    }
+  }
+
+  if (current) {
+    segments.push(current);
+  }
+
+  return segments.length > 1 ? segments : characters;
+};
+
 function BlurText({
   text = "",
   delay = 200,
@@ -56,7 +82,17 @@ function BlurText({
 }: BlurTextProps) {
   const Component = as ?? "p";
   const elements = useMemo(
-    () => (animateBy === "words" ? text.split(" ") : Array.from(text)),
+    () => {
+      if (animateBy === "words") {
+        return text.split(" ");
+      }
+
+      if (animateBy === "lines" && /[，,]/.test(text)) {
+        return splitByCommaBreakpoints(text);
+      }
+
+      return Array.from(text);
+    },
     [animateBy, text],
   );
   const [inView, setInView] = useState(false);
