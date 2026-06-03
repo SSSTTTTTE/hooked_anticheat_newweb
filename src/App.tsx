@@ -97,6 +97,7 @@ function App() {
     let isSnapping = false;
     let touchStartY = 0;
     let touchStartTime = 0;
+    const shouldUseSectionSnap = () => !window.matchMedia("(max-width: 720px)").matches;
 
     const getSnapTargets = () => Array.from(
       document.querySelectorAll<HTMLElement>("main > .section, main > footer.contact"),
@@ -143,6 +144,10 @@ function App() {
     };
 
     const handleWheel = (event: WheelEvent) => {
+      if (!shouldUseSectionSnap()) {
+        return;
+      }
+
       if (isSnapping) {
         event.preventDefault();
         return;
@@ -180,11 +185,19 @@ function App() {
     };
 
     const handleTouchStart = (event: TouchEvent) => {
+      if (!shouldUseSectionSnap()) {
+        return;
+      }
+
       touchStartY = event.touches[0]?.clientY ?? 0;
       touchStartTime = Date.now();
     };
 
     const handleTouchEnd = (event: TouchEvent) => {
+      if (!shouldUseSectionSnap()) {
+        return;
+      }
+
       if (isSnapping) return;
       const endY = event.changedTouches[0]?.clientY ?? touchStartY;
       const deltaY = touchStartY - endY;
@@ -237,6 +250,7 @@ function App() {
     };
     const handleHashChange = () => scrollToHash(window.location.hash);
     const handleAnchorClick = (event: MouseEvent) => {
+      if (event.defaultPrevented) return;
       if (!(event.target instanceof Element)) return;
 
       const anchor = event.target.closest<HTMLAnchorElement>('a[href^="#"]');
@@ -432,6 +446,7 @@ function App() {
               stackPosition="7%"
               scaleEndPosition="6%"
               baseScale={0.9}
+              autoScrollMobile
             >
               {trustSteps.map(([title, body], index) => (
                 <ScrollStackItem itemClassName="trust-stack-card" key={title}>
@@ -694,6 +709,7 @@ function CodeHero() {
         ease="power3.out"
         stagger={0.03}
         threshold={0.1}
+        rootMargin="0px"
         triggerOnce
         triggerOnHover
         respectReducedMotion

@@ -19,6 +19,7 @@ type ScrollStackProps = {
   rotationAmount?: number;
   blurAmount?: number;
   useWindowScroll?: boolean;
+  autoScrollMobile?: boolean;
   onStackComplete?: () => void;
 };
 
@@ -52,6 +53,7 @@ const ScrollStack = ({
   rotationAmount = 0,
   blurAmount = 0,
   useWindowScroll = false,
+  autoScrollMobile = false,
   onStackComplete,
 }: ScrollStackProps) => {
   const scrollerRef = useRef<HTMLDivElement | null>(null);
@@ -61,6 +63,7 @@ const ScrollStack = ({
   const cardsRef = useRef<HTMLElement[]>([]);
   const lastTransformsRef = useRef(new Map<number, CardTransform>());
   const isUpdatingRef = useRef(false);
+  const mobileSyncFrameRef = useRef<number | null>(null);
 
   const calculateProgress = useCallback((scrollTop: number, start: number, end: number) => {
     if (scrollTop < start) return 0;
@@ -271,6 +274,8 @@ const ScrollStack = ({
   useLayoutEffect(() => {
     const scroller = scrollerRef.current;
     if (!scroller) return;
+    const isMobilePageSynced =
+      autoScrollMobile && !useWindowScroll && window.matchMedia("(max-width: 720px)").matches;
 
     const cards = Array.from(
       useWindowScroll
@@ -293,7 +298,9 @@ const ScrollStack = ({
       card.style.webkitPerspective = "1000px";
     });
 
-    setupLenis();
+    if (!isMobilePageSynced) {
+      setupLenis();
+    }
     updateCardTransforms();
 
     const handleStackControl = (event: Event) => {
@@ -307,11 +314,61 @@ const ScrollStack = ({
 
     scroller.addEventListener("scroll-stack-control", handleStackControl);
 
+    const syncMobileStackToPage = () => {
+      if (!autoScrollMobile || useWindowScroll) {
+        return;
+      }
+
+      if (
+        !window.matchMedia("(max-width: 720px)").matches ||
+        window.matchMedia("(prefers-reduced-motion: reduce)").matches
+      ) {
+        return;
+      }
+
+      if (mobileSyncFrameRef.current) {
+        cancelAnimationFrame(mobileSyncFrameRef.current);
+      }
+
+      mobileSyncFrameRef.current = requestAnimationFrame(() => {
+        const section = scroller.closest<HTMLElement>("section");
+        if (!section) return;
+
+        const rect = section.getBoundingClientRect();
+        const shell = scroller.closest<HTMLElement>(".trust-stack-shell");
+        const maxScroll = Math.max(0, scroller.scrollHeight - scroller.clientHeight);
+        const pageRange = Math.max(1, section.offsetHeight - window.innerHeight);
+        const rawProgress = Math.max(0, Math.min(1, -rect.top / pageRange));
+        const progress = window.matchMedia("(max-width: 720px)").matches
+          ? Math.max(0, Math.min(1, rawProgress * 1.12))
+          : rawProgress;
+        const syncedMaxScroll = window.matchMedia("(max-width: 720px)").matches
+          ? maxScroll
+          : maxScroll;
+        const nextScroll = progress * syncedMaxScroll;
+        shell?.style.setProperty("--trust-stack-flow", `${Math.round(progress * 92)}px`);
+        scroller.scrollTop = nextScroll;
+        updateCardTransforms();
+      });
+    };
+
+    if (autoScrollMobile && !useWindowScroll) {
+      syncMobileStackToPage();
+      window.addEventListener("scroll", syncMobileStackToPage, { passive: true });
+      window.addEventListener("resize", syncMobileStackToPage);
+    }
+
     return () => {
       scroller.removeEventListener("scroll-stack-control", handleStackControl);
+      window.removeEventListener("scroll", syncMobileStackToPage);
+      window.removeEventListener("resize", syncMobileStackToPage);
       if (animationFrameRef.current) {
         cancelAnimationFrame(animationFrameRef.current);
       }
+      if (mobileSyncFrameRef.current) {
+        cancelAnimationFrame(mobileSyncFrameRef.current);
+      }
+      scroller.closest<HTMLElement>(".trust-stack-shell")?.style.removeProperty("--trust-stack-flow");
       if (lenisRef.current) {
         lenisRef.current.destroy();
       }
@@ -330,6 +387,7 @@ const ScrollStack = ({
     rotationAmount,
     blurAmount,
     useWindowScroll,
+    autoScrollMobile,
     onStackComplete,
     setupLenis,
     updateCardTransforms,

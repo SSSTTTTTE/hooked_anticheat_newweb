@@ -141,6 +141,7 @@ const GooeyNav = ({
     if (!target) return;
 
     const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const isMobile = window.matchMedia("(max-width: 720px)").matches;
     isAutoScrollingRef.current = !prefersReducedMotion;
     window.clearTimeout(autoScrollTimeoutRef.current);
 
@@ -153,7 +154,7 @@ const GooeyNav = ({
 
     autoScrollTimeoutRef.current = window.setTimeout(() => {
       isAutoScrollingRef.current = false;
-    }, prefersReducedMotion ? 0 : 1100);
+    }, prefersReducedMotion ? 0 : isMobile ? 720 : 1100);
   };
 
   const handleClick = (event: MouseEvent<HTMLAnchorElement>, index: number) => {
