@@ -355,9 +355,16 @@ p {
   will-change: transform, filter, opacity;
 }
 
-.hero-copy .blur-text,
 .section-heading.centered .blur-text {
   justify-content: center;
+}
+
+.hero-copy .blur-text {
+  justify-content: flex-start;
+}
+
+.hero-copy .eyebrow {
+  transform: none;
 }
 
 .feature-block .blur-text,
@@ -1492,14 +1499,10 @@ p {
     grid-template-columns: 1fr;
   }
 
-  .hero-copy {
-    text-align: center;
-  }
-
   .hero-subtitle,
   .hero-actions {
-    margin-inline: auto;
-    justify-content: center;
+    margin-inline: 0;
+    justify-content: flex-start;
   }
 
   .identity-stage {

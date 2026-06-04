@@ -79,25 +79,41 @@ function App() {
 
   useEffect(() => {
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const isMobile = window.matchMedia("(max-width: 720px)").matches;
 
     if (reduced) {
       document.documentElement.classList.add("reduced-motion");
       return;
     }
 
-    const lenis = new Lenis({
-      lerp: 0.08,
-      smoothWheel: true,
-      wheelMultiplier: 0.9,
-    });
+    const lenis = isMobile
+      ? new Lenis({
+          lerp: 0.12,
+          smoothWheel: true,
+          wheelMultiplier: 1,
+          touchMultiplier: 1.5,
+        })
+      : new Lenis({
+          lerp: 0.08,
+          smoothWheel: true,
+          wheelMultiplier: 0.9,
+        });
 
-    gsap.ticker.add((time) => lenis.raf(time * 1000));
-    gsap.ticker.lagSmoothing(0);
+    // On mobile: simple rAF loop (no gsap.ticker needed for smooth scroll)
+    if (!isMobile) {
+      gsap.ticker.add((time) => lenis.raf(time * 1000));
+      gsap.ticker.lagSmoothing(0);
+    } else {
+      const rafLoop = (time: number) => {
+        lenis.raf(time);
+        requestAnimationFrame(rafLoop);
+      };
+      requestAnimationFrame(rafLoop);
+    }
 
     let isSnapping = false;
     let touchStartY = 0;
     let touchStartTime = 0;
-    const shouldUseSectionSnap = () => !window.matchMedia("(max-width: 720px)").matches;
 
     const getSnapTargets = () => Array.from(
       document.querySelectorAll<HTMLElement>("main > .section, main > footer.contact"),
@@ -143,96 +159,84 @@ function App() {
       });
     };
 
-    const handleWheel = (event: WheelEvent) => {
-      if (!shouldUseSectionSnap()) {
-        return;
-      }
-
-      if (isSnapping) {
-        event.preventDefault();
-        return;
-      }
-
-      const stackScroller = event.target instanceof Element
-        ? event.target.closest<HTMLElement>(".scroll-stack-scroller")
-        : null;
-      if (stackScroller) {
-        const stackAt = stackScroller.dataset.scrollStackAt;
-        const shouldKeepStackScroll =
-          (event.deltaY > 0 && stackAt !== "end") ||
-          (event.deltaY < 0 && stackAt !== "start");
-
-        if (shouldKeepStackScroll) {
-          stackScroller.dispatchEvent(new CustomEvent("scroll-stack-control", { detail: "start" }));
+    // Mobile: let native scroll and Lenis handle everything — no section snapping
+    if (!isMobile) {
+      const handleWheel = (event: WheelEvent) => {
+        if (isSnapping) {
+          event.preventDefault();
           return;
         }
 
-        stackScroller.dispatchEvent(new CustomEvent("scroll-stack-control", { detail: "stop" }));
+        const stackScroller = event.target instanceof Element
+          ? event.target.closest<HTMLElement>(".scroll-stack-scroller")
+          : null;
+        if (stackScroller) {
+          const stackAt = stackScroller.dataset.scrollStackAt;
+          const shouldKeepStackScroll =
+            (event.deltaY > 0 && stackAt !== "end") ||
+            (event.deltaY < 0 && stackAt !== "start");
+
+          if (shouldKeepStackScroll) {
+            stackScroller.dispatchEvent(new CustomEvent("scroll-stack-control", { detail: "start" }));
+            return;
+          }
+
+          stackScroller.dispatchEvent(new CustomEvent("scroll-stack-control", { detail: "stop" }));
+          event.preventDefault();
+          event.stopImmediatePropagation();
+        }
+
+        const targets = getSnapTargets();
+        if (targets.length < 2) return;
+
+        const current = getCurrentIndex(targets);
+        const dir = event.deltaY > 0 ? 1 : -1;
+        const next = Math.max(0, Math.min(targets.length - 1, current + dir));
+        if (next === current) return;
+
         event.preventDefault();
-        event.stopImmediatePropagation();
-      }
+        snapToIndex(next, targets);
+      };
 
-      const targets = getSnapTargets();
-      if (targets.length < 2) return;
+      const handleTouchStart = (event: TouchEvent) => {
+        touchStartY = event.touches[0]?.clientY ?? 0;
+        touchStartTime = Date.now();
+      };
 
-      const current = getCurrentIndex(targets);
-      const dir = event.deltaY > 0 ? 1 : -1;
-      const next = Math.max(0, Math.min(targets.length - 1, current + dir));
-      if (next === current) return;
+      const handleTouchEnd = (event: TouchEvent) => {
+        if (isSnapping) return;
+        const endY = event.changedTouches[0]?.clientY ?? touchStartY;
+        const deltaY = touchStartY - endY;
+        const elapsed = Date.now() - touchStartTime;
+        const velocity = Math.abs(deltaY) / elapsed;
 
-      event.preventDefault();
-      snapToIndex(next, targets);
-    };
+        if (Math.abs(deltaY) < 50 && velocity < 0.3) {
+          const targets = getSnapTargets();
+          if (targets.length < 2) return;
+          const current = getCurrentIndex(targets);
+          snapToIndex(current, targets);
+          return;
+        }
 
-    const handleTouchStart = (event: TouchEvent) => {
-      if (!shouldUseSectionSnap()) {
-        return;
-      }
-
-      touchStartY = event.touches[0]?.clientY ?? 0;
-      touchStartTime = Date.now();
-    };
-
-    const handleTouchEnd = (event: TouchEvent) => {
-      if (!shouldUseSectionSnap()) {
-        return;
-      }
-
-      if (isSnapping) return;
-      const endY = event.changedTouches[0]?.clientY ?? touchStartY;
-      const deltaY = touchStartY - endY;
-      const elapsed = Date.now() - touchStartTime;
-      const velocity = Math.abs(deltaY) / elapsed;
-
-      // require meaningful swipe: 50px or 0.3px/ms velocity
-      if (Math.abs(deltaY) < 50 && velocity < 0.3) {
-        // small movement — snap to nearest without advancing
         const targets = getSnapTargets();
         if (targets.length < 2) return;
         const current = getCurrentIndex(targets);
-        snapToIndex(current, targets);
-        return;
-      }
+        const dir = deltaY > 0 ? 1 : -1;
+        const next = Math.max(0, Math.min(targets.length - 1, current + dir));
+        snapToIndex(next, targets);
+      };
 
-      const targets = getSnapTargets();
-      if (targets.length < 2) return;
-      const current = getCurrentIndex(targets);
-      const dir = deltaY > 0 ? 1 : -1;
-      const next = Math.max(0, Math.min(targets.length - 1, current + dir));
-      snapToIndex(next, targets);
-    };
+      const wheelOptions: AddEventListenerOptions = { passive: false, capture: true };
+      window.addEventListener("wheel", handleWheel, wheelOptions);
+      window.addEventListener("touchstart", handleTouchStart, { passive: true });
+      window.addEventListener("touchend", handleTouchEnd, { passive: true });
+    }
 
     const handleLenisScroll = () => {
       ScrollTrigger.update();
     };
 
     lenis.on("scroll", handleLenisScroll);
-
-    const wheelOptions: AddEventListenerOptions = { passive: false, capture: true };
-
-    window.addEventListener("wheel", handleWheel, wheelOptions);
-    window.addEventListener("touchstart", handleTouchStart, { passive: true });
-    window.addEventListener("touchend", handleTouchEnd, { passive: true });
 
     const scrollToHash = (hash: string, immediate = false) => {
       if (!hash) {
@@ -333,9 +337,6 @@ function App() {
     });
 
     return () => {
-      window.removeEventListener("wheel", handleWheel, wheelOptions);
-      window.removeEventListener("touchstart", handleTouchStart);
-      window.removeEventListener("touchend", handleTouchEnd);
       document.removeEventListener("click", handleAnchorClick);
       window.removeEventListener("hashchange", handleHashChange);
       lenis.off("scroll", handleLenisScroll);

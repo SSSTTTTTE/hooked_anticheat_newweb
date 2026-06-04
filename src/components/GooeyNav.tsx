@@ -192,15 +192,15 @@ const GooeyNav = ({
   }, [items]);
 
   useEffect(() => {
-    let frame = 0;
+    let rafId = 0;
 
     const syncFromScroll = () => {
       if (isAutoScrollingRef.current) {
         return;
       }
 
-      window.cancelAnimationFrame(frame);
-      frame = window.requestAnimationFrame(() => {
+      window.cancelAnimationFrame(rafId);
+      rafId = window.requestAnimationFrame(() => {
         const activationY = window.innerHeight * 0.42;
         const nextIndex = items.findIndex((item) => {
           const section = document.querySelector(item.href);
@@ -217,13 +217,11 @@ const GooeyNav = ({
 
     syncFromScroll();
     window.addEventListener("scroll", syncFromScroll, { passive: true });
-    window.addEventListener("resize", syncFromScroll);
 
     return () => {
       window.clearTimeout(autoScrollTimeoutRef.current);
-      window.cancelAnimationFrame(frame);
+      window.cancelAnimationFrame(rafId);
       window.removeEventListener("scroll", syncFromScroll);
-      window.removeEventListener("resize", syncFromScroll);
     };
   }, [items]);
 

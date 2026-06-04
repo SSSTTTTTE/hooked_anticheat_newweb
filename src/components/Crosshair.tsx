@@ -28,6 +28,11 @@ const Crosshair = ({ color = "white", containerRef = null, targetSelector = "a" 
   const filterYRef = useRef<SVGFETurbulenceElement | null>(null);
 
   useEffect(() => {
+    // Skip Crosshair on mobile entirely — no mouse hover on touch devices
+    if (window.matchMedia("(max-width: 720px)").matches) {
+      return;
+    }
+
     let mouse = { x: 0, y: 0 };
     let frame = 0;
 

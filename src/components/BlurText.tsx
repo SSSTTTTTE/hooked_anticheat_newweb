@@ -100,13 +100,14 @@ function BlurText({
   const ref = useRef<HTMLElement | null>(null);
   const segmentRefs = useRef<Array<HTMLSpanElement | null>>([]);
 
-  useLayoutEffect(() => {
+  useEffect(() => {
     if (animateBy !== "lines" || !ref.current) {
       setLineIndexes([]);
       return;
     }
 
-    let frame = 0;
+    let rafId = 0;
+    let resizeTimeout: ReturnType<typeof setTimeout> | null = null;
     const element = ref.current;
 
     const measureLines = () => {
@@ -136,17 +137,22 @@ function BlurText({
     };
 
     const scheduleMeasure = () => {
-      window.cancelAnimationFrame(frame);
-      frame = window.requestAnimationFrame(measureLines);
+      window.cancelAnimationFrame(rafId);
+      rafId = window.requestAnimationFrame(measureLines);
     };
 
-    scheduleMeasure();
-    const resizeObserver = new ResizeObserver(scheduleMeasure);
+    // Use ResizeObserver with immediate call for faster initial measurement
+    const resizeObserver = new ResizeObserver(() => {
+      if (resizeTimeout) clearTimeout(resizeTimeout);
+      resizeTimeout = setTimeout(scheduleMeasure, 16);
+    });
     resizeObserver.observe(element);
-    document.fonts?.ready.then(scheduleMeasure);
+    // Immediate first measure, no debounce on init
+    scheduleMeasure();
 
     return () => {
-      window.cancelAnimationFrame(frame);
+      window.cancelAnimationFrame(rafId);
+      if (resizeTimeout) clearTimeout(resizeTimeout);
       resizeObserver.disconnect();
     };
   }, [animateBy, elements.length, text]);
