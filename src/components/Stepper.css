@@ -1,0 +1,179 @@
+.outer-container {
+  display: flex;
+  min-height: 100%;
+  flex: 1 1 0%;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.step-circle-container {
+  width: 100%;
+  border-radius: 28px;
+}
+
+.step-indicator-row {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  padding: 28px 32px 18px;
+}
+
+.step-indicator-group {
+  display: contents;
+}
+
+.step-content-default {
+  position: relative;
+  overflow: hidden;
+  height: var(--stepper-content-height, 420px);
+}
+
+.step-default {
+  padding: 0 32px;
+}
+
+.footer-container {
+  padding: 20px 32px 32px;
+}
+
+.footer-nav {
+  display: flex;
+  margin-top: 10px;
+}
+
+.footer-nav.spread {
+  justify-content: space-between;
+}
+
+.footer-nav.end {
+  justify-content: flex-end;
+}
+
+.back-button,
+.next-button {
+  min-height: 42px;
+  border: 0;
+  border-radius: 999px;
+  padding: 0 18px;
+  font-family: var(--font-cjk-ui);
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 180ms ease, background 180ms ease, color 180ms ease;
+}
+
+.back-button {
+  color: #6e6e73;
+  background: #f5f5f7;
+}
+
+.back-button:hover {
+  color: #1d1d1f;
+  background: #ececf0;
+}
+
+.next-button {
+  color: #fff;
+  background: var(--blue);
+}
+
+.next-button:hover {
+  background: var(--blue-focus);
+}
+
+.back-button:active,
+.next-button:active {
+  transform: scale(0.97);
+}
+
+.step-indicator {
+  position: relative;
+  display: inline-flex;
+  flex: 0 0 auto;
+  width: 32px;
+  height: 32px;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 999px;
+  padding: 0;
+  background: transparent;
+  cursor: pointer;
+  outline: none;
+  appearance: none;
+  -webkit-appearance: none;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+
+.step-indicator:focus-visible {
+  outline: 2px solid var(--blue-focus);
+  outline-offset: 4px;
+  border-radius: 999px;
+}
+
+.step-indicator:hover,
+.step-indicator:active {
+  background: transparent;
+}
+
+.step-indicator-inner {
+  display: flex;
+  flex: 0 0 auto;
+  width: 32px;
+  height: 32px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  font-family: var(--font-cjk-ui);
+  font-weight: 700;
+}
+
+.active-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 9999px;
+  background-color: #fff;
+}
+
+.step-number {
+  font-size: 13px;
+}
+
+.step-connector {
+  position: relative;
+  height: 2px;
+  flex: 1;
+  margin: 0 8px;
+  overflow: hidden;
+  border-radius: 999px;
+  background-color: #d7d7dd;
+}
+
+.step-connector-inner {
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 100%;
+}
+
+.check-icon {
+  width: 16px;
+  height: 16px;
+  color: #fff;
+}
+
+@media (max-width: 520px) {
+  .step-indicator-row {
+    padding: 22px 20px 12px;
+  }
+
+  .step-default {
+    padding: 0 20px;
+  }
+
+  .footer-container {
+    padding: 18px 20px 24px;
+  }
+}

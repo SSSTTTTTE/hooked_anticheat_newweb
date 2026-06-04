@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type WheelEvent as ReactWheelEvent } from "react";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import Lenis from "lenis";
+import { motion } from "motion/react";
 import { AnimatedContent } from "./components/AnimatedContent";
 import BorderGlow from "./components/BorderGlow";
 import BlurText from "./components/BlurText";
@@ -10,6 +11,7 @@ import Crosshair from "./components/Crosshair";
 import GooeyNav from "./components/GooeyNav";
 import Shuffle from "./components/Shuffle";
 import ScrollStack, { ScrollStackItem } from "./components/ScrollStack";
+import Stepper, { Step } from "./components/Stepper";
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -48,6 +50,36 @@ const trustSteps = [
 
 const decryptCharacters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()_+";
 
+type ReservationFormData = {
+  time: string;
+  wechatName: string;
+  wechatId: string;
+  storeName: string;
+  isEmployed: "是" | "否";
+  note: string;
+};
+
+const createDefaultReservation = (): ReservationFormData => {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+
+  return {
+    time: `${year}/${month}/${day}`,
+    wechatName: "",
+    wechatId: "",
+    storeName: "",
+    isEmployed: "否",
+    note: "",
+  };
+};
+
+async function submitReservationRequest(data: ReservationFormData) {
+  // Placeholder for the real booking API. Keep this contract stable when wiring the backend.
+  console.info("Reservation request queued", data);
+}
+
 type AnimatedTextProps = {
   as?: "p" | "h1" | "h2" | "h3" | "strong";
   text: string;
@@ -76,6 +108,7 @@ function AnimatedText({
 
 function App() {
   const contactRef = useRef<HTMLElement | null>(null);
+  const [isReservationOpen, setIsReservationOpen] = useState(false);
 
   useEffect(() => {
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -162,6 +195,19 @@ function App() {
     // Mobile: let native scroll and Lenis handle everything — no section snapping
     if (!isMobile) {
       const handleWheel = (event: WheelEvent) => {
+        if (document.body.classList.contains("reservation-dialog-open")) {
+          const reservationCard = event.target instanceof Element
+            ? event.target.closest<HTMLElement>(".reservation-card")
+            : null;
+
+          if (reservationCard) {
+            return;
+          }
+
+          event.preventDefault();
+          return;
+        }
+
         if (isSnapping) {
           event.preventDefault();
           return;
@@ -514,7 +560,7 @@ function App() {
             <AnimatedText className="eyebrow" text="Contact" />
             <AnimatedText as="h2" delay={160} text="为你的平台建立反作弊准入标准。" />
             <AnimatedText text="留下平台规模与检测需求，我们会协助配置入驻检测、结果查询与申诉流程。" />
-            <ContactCta />
+            <ContactCta onOpen={() => setIsReservationOpen(true)} />
           </AnimatedContent>
           <AnimatedContent className="contact-info">
             <div>
@@ -535,15 +581,330 @@ function App() {
         </div>
         <Crosshair containerRef={contactRef} color="#f5f5f7" targetSelector=".contact-cta-crosshair .button" />
       </footer>
+      <ReservationDialog
+        isOpen={isReservationOpen}
+        onClose={() => setIsReservationOpen(false)}
+      />
     </main>
   );
 }
 
-function ContactCta() {
+function ContactCta({ onOpen }: { onOpen: () => void }) {
   return (
     <div className="contact-cta-crosshair">
-      <a className="button button-primary" href="#contact">预约服务</a>
+      <button className="button button-primary" onClick={onOpen} type="button">预约服务</button>
     </div>
+  );
+}
+
+function ReservationDialog({
+  isOpen,
+  onClose,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+}) {
+  const scrollHideTimerRef = useRef<ReturnType<typeof window.setTimeout> | null>(null);
+  const closeTimerRef = useRef<ReturnType<typeof window.setTimeout> | null>(null);
+  const [formData, setFormData] = useState<ReservationFormData>(() => createDefaultReservation());
+  const [currentStep, setCurrentStep] = useState(1);
+  const [isClosing, setIsClosing] = useState(false);
+  const [isSubmitted, setIsSubmitted] = useState(false);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    setIsClosing(false);
+    const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
+    const requestClose = () => {
+      setIsClosing(true);
+
+      if (closeTimerRef.current) {
+        window.clearTimeout(closeTimerRef.current);
+      }
+
+      closeTimerRef.current = window.setTimeout(() => {
+        closeTimerRef.current = null;
+        onClose();
+      }, 260);
+    };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        requestClose();
+      }
+    };
+    const preventBackgroundScroll = (event: WheelEvent | TouchEvent) => {
+      const target = event.target;
+      if (target instanceof Element && target.closest(".reservation-card")) {
+        return;
+      }
+
+      event.preventDefault();
+    };
+
+    document.documentElement.classList.add("reservation-dialog-open");
+    document.body.classList.add("reservation-dialog-open");
+    if (scrollbarWidth > 0) {
+      document.body.style.paddingRight = `${scrollbarWidth}px`;
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    document.addEventListener("wheel", preventBackgroundScroll, { passive: false, capture: true });
+    document.addEventListener("touchmove", preventBackgroundScroll, { passive: false, capture: true });
+
+    return () => {
+      if (scrollHideTimerRef.current) {
+        window.clearTimeout(scrollHideTimerRef.current);
+        scrollHideTimerRef.current = null;
+      }
+      if (closeTimerRef.current) {
+        window.clearTimeout(closeTimerRef.current);
+        closeTimerRef.current = null;
+      }
+      document.documentElement.classList.remove("reservation-dialog-open");
+      document.body.classList.remove("reservation-dialog-open");
+      document.body.style.paddingRight = "";
+      window.removeEventListener("keydown", handleKeyDown);
+      document.removeEventListener("wheel", preventBackgroundScroll, true);
+      document.removeEventListener("touchmove", preventBackgroundScroll, true);
+    };
+  }, [isOpen, onClose]);
+
+  if (!isOpen) {
+    return null;
+  }
+
+  const updateField = <Key extends keyof ReservationFormData>(
+    key: Key,
+    value: ReservationFormData[Key],
+  ) => {
+    setFormData((current) => ({ ...current, [key]: value }));
+    setIsSubmitted(false);
+  };
+
+  const isCurrentStepReady =
+    currentStep === 1
+      ? Boolean(formData.time.trim() && formData.wechatName.trim() && formData.wechatId.trim())
+      : currentStep === 2
+        ? Boolean(formData.storeName.trim() && formData.isEmployed)
+        : true;
+  const isReservationReady = Boolean(
+    formData.time.trim()
+    && formData.wechatName.trim()
+    && formData.wechatId.trim()
+    && formData.storeName.trim()
+    && formData.isEmployed,
+  );
+
+  const handleCompleted = () => {
+    void submitReservationRequest(formData);
+    setIsSubmitted(true);
+  };
+
+  const handleFormSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+  };
+  const showReservationScrollbar = (card: HTMLFormElement) => {
+    card.classList.add("is-scrolling");
+
+    if (scrollHideTimerRef.current) {
+      window.clearTimeout(scrollHideTimerRef.current);
+    }
+
+    scrollHideTimerRef.current = window.setTimeout(() => {
+      card.classList.remove("is-scrolling");
+      scrollHideTimerRef.current = null;
+    }, 900);
+  };
+  const handleReservationWheel = (event: ReactWheelEvent<HTMLFormElement>) => {
+    event.stopPropagation();
+    showReservationScrollbar(event.currentTarget);
+  };
+  const requestClose = () => {
+    if (isClosing) return;
+
+    setIsClosing(true);
+
+    if (closeTimerRef.current) {
+      window.clearTimeout(closeTimerRef.current);
+    }
+
+    closeTimerRef.current = window.setTimeout(() => {
+      closeTimerRef.current = null;
+      onClose();
+    }, 260);
+  };
+
+  return (
+    <div
+      className="reservation-dialog"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="reservation-dialog-title"
+    >
+      <motion.button
+        className="reservation-dialog-backdrop"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: isClosing ? 0 : 1 }}
+        transition={{ duration: isClosing ? 0.24 : 0.22 }}
+        onClick={requestClose}
+        type="button"
+        aria-label="关闭预约卡片"
+      />
+      <motion.form
+        className="reservation-card"
+        initial={{ opacity: 0, y: 34, scale: 0.96, filter: "blur(10px)" }}
+        animate={
+          isClosing
+            ? { opacity: 0, y: 24, scale: 0.97, filter: "blur(8px)" }
+            : { opacity: 1, y: 0, scale: 1, filter: "blur(0px)" }
+        }
+        transition={
+          isClosing
+            ? { duration: 0.24, ease: [0.4, 0, 0.2, 1] }
+            : { type: "spring", stiffness: 260, damping: 25, mass: 0.8 }
+        }
+        onScroll={(event) => showReservationScrollbar(event.currentTarget)}
+        onSubmit={handleFormSubmit}
+        onWheel={handleReservationWheel}
+      >
+        <div className="reservation-card-top">
+          <div>
+            <span>Hooked Booking</span>
+            <h3 id="reservation-dialog-title">预约服务</h3>
+          </div>
+          <button className="reservation-close" onClick={requestClose} type="button" aria-label="关闭" />
+        </div>
+
+        <Stepper
+          initialStep={1}
+          onStepChange={(step) => {
+            setCurrentStep(step);
+            setIsSubmitted(false);
+          }}
+          onFinalStepCompleted={handleCompleted}
+          backButtonText="上一步"
+          nextButtonText="下一步"
+          completeButtonText={isSubmitted ? "已记录" : "完成预约"}
+          nextButtonProps={{
+            disabled: isSubmitted || (currentStep === 3 ? !isReservationReady : !isCurrentStepReady),
+          }}
+          disableStepIndicators={false}
+        >
+          <Step>
+            <div className="reservation-step">
+              <ReservationField label="时间" required helper="默认使用今天，也可以改成预约日期。">
+                <input
+                  value={formData.time}
+                  onChange={(event) => updateField("time", event.target.value)}
+                  placeholder="2026/06/05"
+                  required
+                />
+              </ReservationField>
+              <ReservationField label="微信昵称" required helper="微信名">
+                <input
+                  value={formData.wechatName}
+                  onChange={(event) => updateField("wechatName", event.target.value)}
+                  placeholder="请输入内容"
+                  required
+                />
+              </ReservationField>
+              <ReservationField label="微信号" required>
+                <input
+                  value={formData.wechatId}
+                  onChange={(event) => updateField("wechatId", event.target.value)}
+                  placeholder="请输入内容"
+                  required
+                />
+              </ReservationField>
+            </div>
+          </Step>
+          <Step>
+            <div className="reservation-step">
+              <ReservationField label="入店昵称" required helper="店内叫什么就填什么">
+                <input
+                  value={formData.storeName}
+                  onChange={(event) => updateField("storeName", event.target.value)}
+                  placeholder="请输入内容"
+                  required
+                />
+              </ReservationField>
+              <ReservationField label="是否已入职" required helper="店内考核升级请选择“是”，入职查挂请选择“否”">
+                <select
+                  value={formData.isEmployed}
+                  onChange={(event) => updateField("isEmployed", event.target.value as "是" | "否")}
+                >
+                  <option value="否">否</option>
+                  <option value="是">是</option>
+                </select>
+              </ReservationField>
+              <ReservationField label="备注（文字）" helper="如果报备此项为必填">
+                <textarea
+                  value={formData.note}
+                  onChange={(event) => updateField("note", event.target.value)}
+                  placeholder="请输入内容"
+                  rows={3}
+                />
+              </ReservationField>
+            </div>
+          </Step>
+          <Step>
+            <div className="reservation-step reservation-summary">
+              <h4>确认预约信息</h4>
+              <dl>
+                <div>
+                  <dt>时间</dt>
+                  <dd>{formData.time || "未填写"}</dd>
+                </div>
+                <div>
+                  <dt>微信昵称</dt>
+                  <dd>{formData.wechatName || "未填写"}</dd>
+                </div>
+                <div>
+                  <dt>微信号</dt>
+                  <dd>{formData.wechatId || "未填写"}</dd>
+                </div>
+                <div>
+                  <dt>入店昵称</dt>
+                  <dd>{formData.storeName || "未填写"}</dd>
+                </div>
+                <div>
+                  <dt>是否已入职</dt>
+                  <dd>{formData.isEmployed}</dd>
+                </div>
+                <div>
+                  <dt>备注</dt>
+                  <dd>{formData.note || "无"}</dd>
+                </div>
+              </dl>
+              <p>{isSubmitted ? "预约信息已暂存，后续接入真实接口后会发送。" : "确认无误后完成预约。"}</p>
+            </div>
+          </Step>
+        </Stepper>
+      </motion.form>
+    </div>
+  );
+}
+
+function ReservationField({
+  label,
+  helper,
+  required = false,
+  children,
+}: {
+  label: string;
+  helper?: string;
+  required?: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <label className="reservation-field">
+      <span>
+        {required && <b aria-hidden="true">*</b>}
+        {label}
+      </span>
+      {helper && <small>{helper}</small>}
+      {children}
+    </label>
   );
 }
 

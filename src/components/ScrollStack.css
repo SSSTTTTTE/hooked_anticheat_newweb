@@ -19,7 +19,7 @@
 
 .scroll-stack-inner {
   min-height: 100%;
-  padding: 16vh clamp(18px, 5vw, 72px) 38rem;
+  padding: 16vh clamp(18px, 5vw, 72px) 46rem;
 }
 
 .scroll-stack-card-wrapper {

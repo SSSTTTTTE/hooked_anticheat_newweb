@@ -117,6 +117,10 @@ const ScrollStack = ({
       : scrollerRef.current?.querySelector<HTMLElement>(".scroll-stack-end");
     const endElementTop = endElement ? getElementOffset(endElement) : 0;
     let stackEdge: StackEdge = scrollTop <= 2 ? "start" : "middle";
+    const maxScroll = useWindowScroll
+      ? Math.max(0, document.documentElement.scrollHeight - window.innerHeight)
+      : Math.max(0, (scrollerRef.current?.scrollHeight ?? 0) - (scrollerRef.current?.clientHeight ?? 0));
+    let stackReleaseScrollTop = maxScroll;
 
     cardsRef.current.forEach((card, i) => {
       const cardTop = getElementOffset(card);
@@ -175,9 +179,7 @@ const ScrollStack = ({
       }
 
       if (i === cardsRef.current.length - 1) {
-        if (scrollTop >= pinStart - 2) {
-          stackEdge = "end";
-        }
+        stackReleaseScrollTop = Math.min(maxScroll, pinEnd);
 
         const isInView = scrollTop >= pinStart && scrollTop <= pinEnd;
         if (isInView && !stackCompletedRef.current) {
@@ -188,6 +190,10 @@ const ScrollStack = ({
         }
       }
     });
+
+    if (scrollTop >= stackReleaseScrollTop - 2) {
+      stackEdge = "end";
+    }
 
     if (!useWindowScroll && scrollerRef.current) {
       scrollerRef.current.dataset.scrollStackAt = stackEdge;
