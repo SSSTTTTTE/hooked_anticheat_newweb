@@ -76,8 +76,18 @@ const createDefaultReservation = (): ReservationFormData => {
 };
 
 async function submitReservationRequest(data: ReservationFormData) {
-  // Placeholder for the real booking API. Keep this contract stable when wiring the backend.
-  console.info("Reservation request queued", data);
+  const response = await fetch("/api/reservations", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+  const result = await response.json().catch(() => ({}));
+
+  if (!response.ok || !result.ok) {
+    throw new Error(typeof result.error === "string" && result.error ? result.error : "预约提交失败，请稍后再试");
+  }
+
+  return result as { ok: true; recordId: string };
 }
 
 type AnimatedTextProps = {
@@ -567,12 +577,7 @@ function App() {
               <span>企业微信</span>
               <strong>扫码预约对接</strong>
             </div>
-            <div className="qr-box" aria-label="企业微信二维码占位">
-              <span />
-              <span />
-              <span />
-              <span />
-            </div>
+            <img className="qr-box" src="/wecom-qr.png" alt="企业微信预约二维码" />
           </AnimatedContent>
         </div>
         <div className="footer-line">
@@ -609,7 +614,9 @@ function ReservationDialog({
   const [formData, setFormData] = useState<ReservationFormData>(() => createDefaultReservation());
   const [currentStep, setCurrentStep] = useState(1);
   const [isClosing, setIsClosing] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const [submitError, setSubmitError] = useState("");
 
   useEffect(() => {
     if (!isOpen) return;
@@ -679,6 +686,7 @@ function ReservationDialog({
   ) => {
     setFormData((current) => ({ ...current, [key]: value }));
     setIsSubmitted(false);
+    setSubmitError("");
   };
 
   const isCurrentStepReady =
@@ -696,8 +704,20 @@ function ReservationDialog({
   );
 
   const handleCompleted = () => {
-    void submitReservationRequest(formData);
-    setIsSubmitted(true);
+    if (isSubmitting || isSubmitted || !isReservationReady) return;
+
+    setIsSubmitting(true);
+    setSubmitError("");
+    void submitReservationRequest(formData)
+      .then(() => {
+        setIsSubmitted(true);
+      })
+      .catch((error: unknown) => {
+        setSubmitError(error instanceof Error ? error.message : "预约提交失败，请稍后再试");
+      })
+      .finally(() => {
+        setIsSubmitting(false);
+      });
   };
 
   const handleFormSubmit = (event: FormEvent<HTMLFormElement>) => {
@@ -772,7 +792,6 @@ function ReservationDialog({
             <span>Hooked Booking</span>
             <h3 id="reservation-dialog-title">预约服务</h3>
           </div>
-          <button className="reservation-close" onClick={requestClose} type="button" aria-label="关闭" />
         </div>
 
         <Stepper
@@ -780,13 +799,14 @@ function ReservationDialog({
           onStepChange={(step) => {
             setCurrentStep(step);
             setIsSubmitted(false);
+            setSubmitError("");
           }}
           onFinalStepCompleted={handleCompleted}
           backButtonText="上一步"
           nextButtonText="下一步"
-          completeButtonText={isSubmitted ? "已记录" : "完成预约"}
+          completeButtonText={isSubmitting ? "提交中..." : isSubmitted ? "预约成功" : "完成预约"}
           nextButtonProps={{
-            disabled: isSubmitted || (currentStep === 3 ? !isReservationReady : !isCurrentStepReady),
+            disabled: isSubmitting || isSubmitted || (currentStep === 3 ? !isReservationReady : !isCurrentStepReady),
           }}
           disableStepIndicators={false}
         >
@@ -876,7 +896,8 @@ function ReservationDialog({
                   <dd>{formData.note || "无"}</dd>
                 </div>
               </dl>
-              <p>{isSubmitted ? "预约信息已暂存，后续接入真实接口后会发送。" : "确认无误后完成预约。"}</p>
+              <p>{isSubmitted ? "请主动添加工作人员微信等待排队" : "确认无误后完成预约。"}</p>
+              {submitError && <p className="reservation-error" role="alert">{submitError}</p>}
             </div>
           </Step>
         </Stepper>

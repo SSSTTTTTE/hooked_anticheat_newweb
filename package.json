@@ -4,9 +4,10 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite --host 0.0.0.0",
+    "dev": "node server.mjs",
     "build": "tsc -b && vite build",
-    "preview": "vite preview --host 0.0.0.0"
+    "preview": "NODE_ENV=production node server.mjs",
+    "test:feishu-write": "node scripts/test-feishu-write.mjs"
   },
   "dependencies": {
     "@fontsource/pixelify-sans": "^5.2.7",
