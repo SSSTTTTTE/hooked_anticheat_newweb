@@ -4,7 +4,7 @@ services:
     container_name: hooked-anticheat-site
     restart: unless-stopped
     ports:
-      - "${PORT:-5173}:5173"
+      - "${HOST_BIND:-127.0.0.1}:${HOST_PORT:-5173}:5173"
     env_file:
       - .env
     environment:

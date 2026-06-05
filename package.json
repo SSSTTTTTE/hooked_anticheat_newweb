@@ -10,6 +10,7 @@
     "test:feishu-write": "node scripts/test-feishu-write.mjs"
   },
   "dependencies": {
+    "@fontsource/noto-serif-sc": "^5.2.8",
     "@fontsource/pixelify-sans": "^5.2.7",
     "@types/react": "^19.2.15",
     "@types/react-dom": "^19.2.3",

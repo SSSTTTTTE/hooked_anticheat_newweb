@@ -1,6 +1,7 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import "@fontsource/pixelify-sans/latin.css";
+import "./fonts.css";
 import App from "./App";
 import "./styles.css";
 

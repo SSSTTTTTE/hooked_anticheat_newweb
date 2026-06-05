@@ -74,6 +74,8 @@ Docker 部署：
 docker compose up -d --build
 ```
 
+宝塔面板服务器可使用 `scripts/deploy-bt-hooked.sh` 覆盖部署到 `/www/wwwroot/hooked.cn`，默认将容器绑定到 `127.0.0.1:3021` 并重写 Nginx 反向代理；如果宝塔已有 `/www/server/panel/vhost/cert/hooked.cn/` 证书，会同时恢复 HTTPS。执行前需先在服务器站点目录准备生产 `.env`。
+
 健康检查：
 
 ```bash
