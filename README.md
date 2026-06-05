@@ -66,4 +66,37 @@ npm run preview
 
 ## 部署
 
-项目使用 Vite 构建，执行 `npm run build` 后会生成 `dist/` 目录，可部署到任意静态网站托管平台。
+项目使用 Vite 构建，执行 `npm run build` 后会生成 `dist/` 目录。生产环境由 `server.mjs` 同时提供静态页面和后端 API，前端只调用同源 `/api/reservations`、`/api/captcha/challenge`，飞书 App Secret、Bitable Token、验证码密钥均只放在后端环境变量中。
+
+Docker 部署：
+
+```bash
+docker compose up -d --build
+```
+
+健康检查：
+
+```bash
+curl http://localhost:5173/api/health
+```
+
+预约表单需要后端环境变量：
+
+- `FEISHU_APP_ID`
+- `FEISHU_APP_SECRET`
+- `FEISHU_BITABLE_APP_TOKEN`
+- `FEISHU_RESERVATIONS_TABLE_ID`
+- `ALTCHA_HMAC_SECRET`
+- `GATECHA_BASE_URL`（可选，配置后使用 GateCHA）
+- `GATECHA_API_KEY`（可选，配置后使用 GateCHA）
+- `TRUST_PROXY_HEADERS`（默认 `false`；只有在可信反向代理会覆盖客户端 IP 头时才设为 `true`）
+
+验证码优先由服务端代理 GateCHA challenge/verify；未配置 GateCHA 时，服务端使用 `ALTCHA_HMAC_SECRET` 生成并校验本地 ALTCHA challenge。前端不会暴露 GateCHA API Key 或 HMAC secret。预约提交接口按客户端 IP 做滚动限流：同一 IP 每分钟最多 1 次，24 小时最多 3 次。
+
+飞书写入测试：
+
+```bash
+npm run test:feishu-write
+```
+
+该脚本会先从后端获取验证码 challenge，求解 ALTCHA 后提交测试预约记录。

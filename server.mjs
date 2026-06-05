@@ -2,11 +2,14 @@ import { createServer } from "node:http";
 import { createReadStream, existsSync, readFileSync } from "node:fs";
 import { extname, join, normalize } from "node:path";
 import { fileURLToPath } from "node:url";
+import { createChallenge, pbkdf2, verifySolution } from "altcha/lib";
 
 const rootDir = fileURLToPath(new URL(".", import.meta.url));
 const isProduction = process.env.NODE_ENV === "production";
 const port = Number(process.env.PORT || 5173);
 const feishuBaseUrl = "https://open.feishu.cn/open-apis";
+const reservationRateLimits = new Map();
+const usedLocalCaptchaSolutions = new Map();
 const tenantTokenState = {
   token: "",
   expiresAt: 0,
@@ -33,6 +36,11 @@ const server = createServer(async (req, res) => {
       return;
     }
 
+    if (url.pathname === "/api/captcha/challenge" && req.method === "GET") {
+      await handleCaptchaChallenge(res);
+      return;
+    }
+
     if (url.pathname === "/api/health" && req.method === "GET") {
       sendJson(res, 200, { ok: true });
       return;
@@ -50,8 +58,10 @@ const server = createServer(async (req, res) => {
 
     await serveStaticAsset(url.pathname, res);
   } catch (error) {
-    console.error("[server] request failed", error);
     const statusCode = Number.isInteger(error.statusCode) ? error.statusCode : 500;
+    if (statusCode >= 500) {
+      console.error("[server] request failed", error);
+    }
     const message = statusCode >= 500 ? "服务暂时不可用，请稍后再试" : error.message;
     sendJson(res, statusCode, { error: message });
   }
@@ -64,6 +74,9 @@ server.listen(port, "0.0.0.0", () => {
 async function handleReservationCreate(req, res) {
   const payload = await readJsonBody(req);
   const reservation = normalizeReservation(payload);
+  await verifyCaptcha(payload);
+  assertReservationRateLimit(getClientIp(req));
+
   const fields = buildReservationFields(reservation);
   const appToken = requiredEnv("FEISHU_BITABLE_APP_TOKEN");
   const tableId = requiredEnv("FEISHU_RESERVATIONS_TABLE_ID");
@@ -73,6 +86,179 @@ async function handleReservationCreate(req, res) {
     ok: true,
     recordId: record.record_id,
   });
+}
+
+async function handleCaptchaChallenge(res) {
+  if (!hasGatechaConfig()) {
+    const challenge = await createChallenge({
+      algorithm: "PBKDF2/SHA-256",
+      cost: Number(process.env.ALTCHA_COST || 120_000),
+      deriveKey: pbkdf2.deriveKey,
+      expiresAt: Math.floor((Date.now() + 2 * 60 * 1000) / 1000),
+      hmacSignatureSecret: localCaptchaSecret(),
+    });
+    sendJson(res, 200, challenge);
+    return;
+  }
+
+  const response = await fetch(gatechaUrl("/api/v1/challenge"));
+  const body = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    const error = new Error("验证码服务暂时不可用，请稍后再试");
+    error.statusCode = 503;
+    throw error;
+  }
+
+  sendJson(res, 200, body);
+}
+
+async function verifyCaptcha(payload) {
+  const captchaPayload = toCleanString(payload?.captcha || payload?.altcha);
+  if (!captchaPayload) {
+    const error = new Error("请先完成人机验证");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  if (!hasGatechaConfig()) {
+    await verifyLocalCaptcha(captchaPayload);
+    return;
+  }
+
+  const response = await fetch(gatechaUrl("/api/v1/verify"), {
+    method: "POST",
+    headers: { "Content-Type": "application/json; charset=utf-8" },
+    body: JSON.stringify({ payload: captchaPayload }),
+  });
+  const body = await response.json().catch(() => ({}));
+
+  if (!response.ok || body.ok !== true) {
+    const error = new Error("验证码验证失败，请重新验证");
+    error.statusCode = 400;
+    throw error;
+  }
+}
+
+async function verifyLocalCaptcha(captchaPayload) {
+  let decoded;
+  try {
+    decoded = JSON.parse(Buffer.from(captchaPayload, "base64").toString("utf8"));
+  } catch {
+    const error = new Error("验证码格式无效，请重新验证");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const challenge = decoded?.challenge;
+  const solution = decoded?.solution;
+  if (!challenge?.parameters || !solution) {
+    const error = new Error("验证码格式无效，请重新验证");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  cleanupUsedLocalCaptchaSolutions();
+  const replayKey = `${challenge.signature || ""}:${solution.counter}`;
+  if (usedLocalCaptchaSolutions.has(replayKey)) {
+    const error = new Error("验证码已使用，请重新验证");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const result = await verifySolution({
+    challenge,
+    deriveKey: pbkdf2.deriveKey,
+    hmacSignatureSecret: localCaptchaSecret(),
+    solution,
+  });
+
+  if (!result.verified) {
+    const error = new Error("验证码验证失败，请重新验证");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const expiresAt = Number(challenge.parameters.expiresAt || 0) * 1000 || Date.now() + 2 * 60 * 1000;
+  usedLocalCaptchaSolutions.set(replayKey, expiresAt);
+}
+
+function cleanupUsedLocalCaptchaSolutions() {
+  const now = Date.now();
+  for (const [key, expiresAt] of usedLocalCaptchaSolutions) {
+    if (expiresAt <= now) {
+      usedLocalCaptchaSolutions.delete(key);
+    }
+  }
+}
+
+function hasGatechaConfig() {
+  return Boolean(process.env.GATECHA_BASE_URL && process.env.GATECHA_API_KEY);
+}
+
+function localCaptchaSecret() {
+  const secret = process.env.ALTCHA_HMAC_SECRET;
+  if (secret) return secret;
+
+  const error = new Error("服务端缺少环境变量：ALTCHA_HMAC_SECRET");
+  error.statusCode = 500;
+  throw error;
+}
+
+function gatechaUrl(path) {
+  const baseUrl = requiredEnv("GATECHA_BASE_URL").replace(/\/+$/, "");
+  const apiKey = requiredEnv("GATECHA_API_KEY");
+  const url = new URL(`${baseUrl}${path}`);
+  url.searchParams.set("apiKey", apiKey);
+  return url;
+}
+
+function assertReservationRateLimit(ip) {
+  const now = Date.now();
+  const minuteWindowMs = 60 * 1000;
+  const dayWindowMs = 24 * 60 * 60 * 1000;
+  const entry = reservationRateLimits.get(ip) || { minute: [], day: [] };
+
+  entry.minute = entry.minute.filter((timestamp) => now - timestamp < minuteWindowMs);
+  entry.day = entry.day.filter((timestamp) => now - timestamp < dayWindowMs);
+
+  if (entry.minute.length >= 1) {
+    reservationRateLimits.set(ip, entry);
+    const error = new Error("同一 IP 每分钟只能提交一次，请稍后再试");
+    error.statusCode = 429;
+    throw error;
+  }
+
+  if (entry.day.length >= 3) {
+    reservationRateLimits.set(ip, entry);
+    const error = new Error("同一 IP 每天最多提交三次");
+    error.statusCode = 429;
+    throw error;
+  }
+
+  entry.minute.push(now);
+  entry.day.push(now);
+  reservationRateLimits.set(ip, entry);
+}
+
+function getClientIp(req) {
+  if (!trustProxyHeaders()) {
+    return (req.socket.remoteAddress || "unknown").replace(/^::ffff:/, "");
+  }
+
+  const forwardedFor = typeof req.headers["x-forwarded-for"] === "string"
+    ? req.headers["x-forwarded-for"].split(",")[0]?.trim()
+    : "";
+  const realIp = typeof req.headers["x-real-ip"] === "string" ? req.headers["x-real-ip"].trim() : "";
+  const cloudflareIp = typeof req.headers["cf-connecting-ip"] === "string"
+    ? req.headers["cf-connecting-ip"].trim()
+    : "";
+  const socketIp = req.socket.remoteAddress || "unknown";
+  return (cloudflareIp || realIp || forwardedFor || socketIp).replace(/^::ffff:/, "");
+}
+
+function trustProxyHeaders() {
+  return process.env.TRUST_PROXY_HEADERS === "true";
 }
 
 function normalizeReservation(payload) {

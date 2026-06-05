@@ -1,0 +1,19 @@
+services:
+  hooked-site:
+    build: .
+    container_name: hooked-anticheat-site
+    restart: unless-stopped
+    ports:
+      - "${PORT:-5173}:5173"
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+      PORT: 5173
+      TRUST_PROXY_HEADERS: "${TRUST_PROXY_HEADERS:-false}"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:5173/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s

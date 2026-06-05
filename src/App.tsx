@@ -3,6 +3,7 @@ import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import Lenis from "lenis";
 import { motion } from "motion/react";
+import "altcha";
 import { AnimatedContent } from "./components/AnimatedContent";
 import BorderGlow from "./components/BorderGlow";
 import BlurText from "./components/BlurText";
@@ -75,11 +76,11 @@ const createDefaultReservation = (): ReservationFormData => {
   };
 };
 
-async function submitReservationRequest(data: ReservationFormData) {
+async function submitReservationRequest(data: ReservationFormData, captcha: string) {
   const response = await fetch("/api/reservations", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(data),
+    body: JSON.stringify({ ...data, captcha }),
   });
   const result = await response.json().catch(() => ({}));
 
@@ -611,6 +612,7 @@ function ReservationDialog({
 }) {
   const scrollHideTimerRef = useRef<ReturnType<typeof window.setTimeout> | null>(null);
   const closeTimerRef = useRef<ReturnType<typeof window.setTimeout> | null>(null);
+  const formRef = useRef<HTMLFormElement | null>(null);
   const [formData, setFormData] = useState<ReservationFormData>(() => createDefaultReservation());
   const [currentStep, setCurrentStep] = useState(1);
   const [isClosing, setIsClosing] = useState(false);
@@ -706,9 +708,15 @@ function ReservationDialog({
   const handleCompleted = () => {
     if (isSubmitting || isSubmitted || !isReservationReady) return;
 
+    const captcha = toFormString(new FormData(formRef.current || undefined).get("captcha"));
+    if (!captcha) {
+      setSubmitError("请先完成人机验证");
+      return;
+    }
+
     setIsSubmitting(true);
     setSubmitError("");
-    void submitReservationRequest(formData)
+    void submitReservationRequest(formData, captcha)
       .then(() => {
         setIsSubmitted(true);
       })
@@ -771,6 +779,7 @@ function ReservationDialog({
         aria-label="关闭预约卡片"
       />
       <motion.form
+        ref={formRef}
         className="reservation-card"
         initial={{ opacity: 0, y: 34, scale: 0.96, filter: "blur(10px)" }}
         animate={
@@ -897,6 +906,12 @@ function ReservationDialog({
                 </div>
               </dl>
               <p>{isSubmitted ? "请主动添加工作人员微信等待排队" : "确认无误后完成预约。"}</p>
+              {!isSubmitted && (
+                <altcha-widget
+                  challenge="/api/captcha/challenge"
+                  name="captcha"
+                />
+              )}
               {submitError && <p className="reservation-error" role="alert">{submitError}</p>}
             </div>
           </Step>
@@ -904,6 +919,10 @@ function ReservationDialog({
       </motion.form>
     </div>
   );
+}
+
+function toFormString(value: FormDataEntryValue | null) {
+  return typeof value === "string" ? value : "";
 }
 
 function ReservationField({
