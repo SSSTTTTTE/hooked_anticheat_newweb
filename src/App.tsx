@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type WheelEvent as ReactWheelEvent } from "react";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
+import SplitText from "gsap/SplitText";
 import Lenis from "lenis";
 import { motion } from "motion/react";
 import "altcha";
@@ -14,7 +15,7 @@ import Shuffle from "./components/Shuffle";
 import ScrollStack, { ScrollStackItem } from "./components/ScrollStack";
 import Stepper, { Step } from "./components/Stepper";
 
-gsap.registerPlugin(ScrollTrigger);
+gsap.registerPlugin(ScrollTrigger, SplitText);
 
 const entryFeatures = [
   {
@@ -117,9 +118,227 @@ function AnimatedText({
   );
 }
 
+function InitialLoader({
+  isReady,
+  onComplete,
+}: {
+  isReady: boolean;
+  onComplete: () => void;
+}) {
+  const loaderRef = useRef<HTMLDivElement | null>(null);
+  const wordRef = useRef<HTMLHeadingElement | null>(null);
+  const splitRef = useRef<SplitText | null>(null);
+  const isReadyRef = useRef(isReady);
+  const introCompleteRef = useRef(false);
+  const exitStartedRef = useRef(false);
+  const scanRows = Array.from({ length: 7 }, (_, index) => index);
+
+  useEffect(() => {
+    isReadyRef.current = isReady;
+  }, [isReady]);
+
+  const playExit = useCallback(() => {
+    if (exitStartedRef.current || !loaderRef.current) return;
+
+    exitStartedRef.current = true;
+    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    if (reduced) {
+      onComplete();
+      return;
+    }
+
+    const loader = loaderRef.current;
+    const chars = splitRef.current?.chars || [];
+
+    gsap.timeline({
+      defaults: { ease: "power3.inOut" },
+      onComplete,
+    })
+      .set(loader, { pointerEvents: "none" })
+      .to(".initial-loader-rip", { scaleY: 1, opacity: 1, duration: 0.22, ease: "power2.out" }, 0)
+      .to(chars, {
+        x: (index: number) => index < chars.length / 2 ? "-18vw" : "18vw",
+        y: (index: number) => (index % 2 === 0 ? -18 : 18),
+        rotateZ: (index: number) => index < chars.length / 2 ? -7 : 7,
+        opacity: 0,
+        filter: "blur(10px)",
+        duration: 0.62,
+        stagger: { each: 0.018, from: "center" },
+      }, 0.08)
+      .to(".initial-loader-shard-left", {
+        clipPath: "polygon(0 0, 0 100%, 0 100%, 0 0)",
+        x: "-12vw",
+        skewX: -5,
+        duration: 0.9,
+      }, 0.18)
+      .to(".initial-loader-shard-right", {
+        clipPath: "polygon(100% 0, 100% 100%, 100% 100%, 100% 0)",
+        x: "12vw",
+        skewX: 5,
+        duration: 0.9,
+      }, 0.18)
+      .to(".initial-loader-rip", {
+        scaleX: 18,
+        opacity: 0,
+        filter: "blur(16px)",
+        duration: 0.7,
+      }, 0.24)
+      .to(loader, {
+        opacity: 0,
+        duration: 0.36,
+        ease: "power2.out",
+      }, 0.82);
+  }, [onComplete]);
+
+  useEffect(() => {
+    if (!loaderRef.current || !wordRef.current) return;
+
+    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    if (reduced) {
+      introCompleteRef.current = true;
+      if (isReadyRef.current) {
+        onComplete();
+      }
+      return;
+    }
+
+    const ctx = gsap.context(() => {
+      splitRef.current = new SplitText(wordRef.current, {
+        type: "chars",
+        charsClass: "initial-loader-char",
+      });
+
+      const chars = splitRef.current.chars;
+
+      gsap.set(chars, {
+        yPercent: 120,
+        opacity: 0,
+        filter: "blur(12px)",
+      });
+      gsap.set(".initial-loader-rip", { scaleY: 0, opacity: 0 });
+      gsap.set(".initial-loader-shard-left", {
+        clipPath: "polygon(0 0, 50% 0, 47% 16%, 51% 32%, 46% 52%, 50% 71%, 47% 100%, 0 100%)",
+      });
+      gsap.set(".initial-loader-shard-right", {
+        clipPath: "polygon(53% 0, 100% 0, 100% 100%, 53% 100%, 50% 74%, 54% 54%, 49% 35%, 53% 18%)",
+      });
+
+      gsap.timeline({
+        defaults: { ease: "power3.out" },
+        onComplete: () => {
+          introCompleteRef.current = true;
+          if (isReadyRef.current) {
+            playExit();
+          }
+        },
+      })
+        .fromTo(".initial-loader-cinema-mask", { scaleX: 0 }, { scaleX: 1, duration: 0.7, ease: "expo.out" }, 0)
+        .to(chars, {
+          yPercent: 0,
+          opacity: 1,
+          filter: "blur(0px)",
+          duration: 0.66,
+          stagger: { each: 0.045, from: "center" },
+        }, 0.18)
+        .fromTo(".initial-loader-caption", { opacity: 0, y: 10 }, { opacity: 1, y: 0, duration: 0.42 }, 0.72)
+        .fromTo(".initial-loader-progress span", { scaleX: 0 }, { scaleX: 1, duration: 1.15, ease: "power2.inOut" }, 0.42)
+        .to(".initial-loader-rip", { scaleY: 0.62, opacity: 0.64, duration: 0.38, ease: "power2.out" }, 1.05)
+        .to(".initial-loader-rip", { scaleY: 0.4, opacity: 0.42, duration: 0.34, ease: "power2.inOut" }, 1.43);
+    }, loaderRef);
+
+    return () => {
+      ctx.revert();
+      splitRef.current?.revert();
+      splitRef.current = null;
+    };
+  }, [onComplete, playExit]);
+
+  useEffect(() => {
+    if (isReady && introCompleteRef.current) {
+      playExit();
+    }
+  }, [isReady, playExit]);
+
+  return (
+    <div
+      ref={loaderRef}
+      className="initial-loader"
+      aria-live="polite"
+      aria-busy="true"
+      role="status"
+    >
+      <div className="initial-loader-shard initial-loader-shard-left" aria-hidden="true" />
+      <div className="initial-loader-shard initial-loader-shard-right" aria-hidden="true" />
+      <div className="initial-loader-grid" aria-hidden="true">
+        {scanRows.map((row) => (
+          <span key={row} />
+        ))}
+      </div>
+      <div className="initial-loader-rip" aria-hidden="true" />
+      <div className="initial-loader-mark">
+        <div className="initial-loader-cinema-mask" aria-hidden="true" />
+        <h2 ref={wordRef} className="initial-loader-word">HOOKED</h2>
+        <div className="initial-loader-progress" aria-hidden="true">
+          <span />
+        </div>
+        <p className="initial-loader-caption">
+          正在完成环境校验
+        </p>
+      </div>
+    </div>
+  );
+}
+
 function App() {
   const contactRef = useRef<HTMLElement | null>(null);
   const [isReservationOpen, setIsReservationOpen] = useState(false);
+  const [isInitialLoaderReady, setIsInitialLoaderReady] = useState(false);
+  const [isInitialLoaderVisible, setIsInitialLoaderVisible] = useState(true);
+  const openReservation = useCallback(() => setIsReservationOpen(true), []);
+  const closeReservation = useCallback(() => setIsReservationOpen(false), []);
+  const completeInitialLoader = useCallback(() => {
+    document.body.classList.remove("initial-loader-active");
+    setIsInitialLoaderVisible(false);
+  }, []);
+
+  useEffect(() => {
+    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const minimumDuration = reduced ? 220 : 1650;
+    let isMounted = true;
+    let timer: number | undefined;
+
+    document.body.classList.add("initial-loader-active");
+
+    const loadPromise = document.readyState === "complete"
+      ? Promise.resolve()
+      : new Promise<void>((resolve) => {
+          window.addEventListener("load", () => resolve(), { once: true });
+        });
+
+    const fontPromise = "fonts" in document
+      ? document.fonts.ready.then(() => undefined).catch(() => undefined)
+      : Promise.resolve();
+
+    const durationPromise = new Promise<void>((resolve) => {
+      timer = window.setTimeout(resolve, minimumDuration);
+    });
+
+    Promise.all([loadPromise, fontPromise, durationPromise]).then(() => {
+      if (!isMounted) {
+        return;
+      }
+
+      setIsInitialLoaderReady(true);
+    });
+
+    return () => {
+      isMounted = false;
+      window.clearTimeout(timer);
+      document.body.classList.remove("initial-loader-active");
+    };
+  }, []);
 
   useEffect(() => {
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -404,6 +623,12 @@ function App() {
 
   return (
     <main>
+      {isInitialLoaderVisible ? (
+        <InitialLoader
+          isReady={isInitialLoaderReady}
+          onComplete={completeInitialLoader}
+        />
+      ) : null}
       <Nav />
       <section className="section hero code-hero-section" id="top">
         <CodeHero />
@@ -571,7 +796,7 @@ function App() {
             <AnimatedText className="eyebrow" text="Contact" />
             <AnimatedText as="h2" delay={160} text="为你的平台建立反作弊准入标准。" />
             <AnimatedText text="留下平台规模与检测需求，我们会协助配置入驻检测、结果查询与申诉流程。" />
-            <ContactCta onOpen={() => setIsReservationOpen(true)} />
+            <ContactCta onOpen={openReservation} />
           </AnimatedContent>
           <AnimatedContent className="contact-info">
             <div>
@@ -589,7 +814,7 @@ function App() {
       </footer>
       <ReservationDialog
         isOpen={isReservationOpen}
-        onClose={() => setIsReservationOpen(false)}
+        onClose={closeReservation}
       />
     </main>
   );

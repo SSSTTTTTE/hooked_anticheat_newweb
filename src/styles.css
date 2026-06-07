@@ -50,6 +50,10 @@ body {
   overscroll-behavior-x: none;
 }
 
+body.initial-loader-active {
+  overflow: hidden;
+}
+
 a {
   color: inherit;
   text-decoration: none;
@@ -123,6 +127,214 @@ input {
   overflow: hidden;
   clip: rect(0, 0, 0, 0);
   border: 0;
+}
+
+.initial-loader {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483600;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  color: rgba(237, 241, 220, 0.92);
+  background:
+    radial-gradient(circle at 50% 46%, rgba(41, 151, 255, 0.12), transparent 30%),
+    radial-gradient(circle at 50% 50%, rgba(226, 231, 205, 0.08), transparent 42%),
+    linear-gradient(180deg, #090909 0%, #030303 100%);
+  font-family: var(--font-pixel-latin), var(--font-cjk-ui);
+  pointer-events: auto;
+}
+
+.initial-loader::before,
+.initial-loader::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.initial-loader::before {
+  opacity: 0.32;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.055) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.045) 1px, transparent 1px);
+  background-size: 42px 42px;
+  -webkit-mask-image: radial-gradient(circle at 50% 46%, #000 0 42%, transparent 72%);
+  mask-image: radial-gradient(circle at 50% 46%, #000 0 42%, transparent 72%);
+}
+
+.initial-loader::after {
+  background:
+    linear-gradient(180deg, transparent 0 48%, rgba(41, 151, 255, 0.12) 50%, transparent 52% 100%),
+    radial-gradient(circle at 50% 42%, transparent 0, rgba(0, 0, 0, 0.46) 78%);
+  background-size: 100% 160px, 100% 100%;
+  animation: initial-loader-scan 2.4s linear infinite;
+}
+
+.initial-loader-shard {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 50% 45%, rgba(41, 151, 255, 0.14), transparent 34%),
+    linear-gradient(180deg, rgba(8, 8, 9, 0.96), rgba(2, 2, 2, 0.98));
+  will-change: clip-path, transform;
+}
+
+.initial-loader-shard-left {
+  transform-origin: 48% 50%;
+}
+
+.initial-loader-shard-right {
+  transform-origin: 52% 50%;
+}
+
+.initial-loader-grid {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: grid;
+  align-content: center;
+  gap: 22px;
+  padding-inline: clamp(28px, 10vw, 160px);
+  opacity: 0.72;
+}
+
+.initial-loader-grid span {
+  display: block;
+  width: min(72vw, 960px);
+  height: 1px;
+  margin-inline: auto;
+  transform-origin: center;
+  background: linear-gradient(90deg, transparent, rgba(41, 151, 255, 0.76), rgba(237, 241, 220, 0.7), transparent);
+  box-shadow: 0 0 18px rgba(41, 151, 255, 0.28);
+}
+
+.initial-loader-grid span {
+  animation: initial-loader-grid-pulse 1.9s ease-in-out infinite;
+}
+
+.initial-loader-grid span:nth-child(2n) {
+  animation-delay: 140ms;
+}
+
+.initial-loader-grid span:nth-child(3n) {
+  animation-delay: 280ms;
+}
+
+.initial-loader-rip {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  z-index: 4;
+  width: clamp(5px, 1vw, 12px);
+  transform: translateX(-50%) scaleY(0);
+  transform-origin: center;
+  opacity: 0;
+  background:
+    linear-gradient(180deg, transparent 0%, rgba(237, 241, 220, 0.78) 14%, rgba(41, 151, 255, 0.96) 26%, rgba(237, 241, 220, 0.92) 44%, rgba(41, 151, 255, 0.82) 62%, rgba(237, 241, 220, 0.7) 78%, transparent 100%);
+  clip-path: polygon(44% 0, 62% 8%, 40% 17%, 58% 29%, 36% 41%, 64% 55%, 42% 69%, 60% 82%, 46% 100%, 28% 100%, 42% 82%, 24% 67%, 46% 53%, 22% 38%, 44% 25%, 28% 12%);
+  filter: drop-shadow(0 0 18px rgba(41, 151, 255, 0.7));
+  pointer-events: none;
+  will-change: transform, opacity, filter;
+}
+
+.initial-loader-mark {
+  position: relative;
+  z-index: 5;
+  display: grid;
+  justify-items: center;
+  gap: 18px;
+  width: min(86vw, 760px);
+}
+
+.initial-loader-cinema-mask {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  z-index: -1;
+  width: min(92vw, 820px);
+  height: clamp(128px, 18vw, 210px);
+  transform: translate(-50%, -50%);
+  transform-origin: center;
+  background:
+    radial-gradient(ellipse at 50% 50%, rgba(237, 241, 220, 0.1) 0%, rgba(41, 151, 255, 0.08) 30%, rgba(41, 151, 255, 0.035) 52%, transparent 78%),
+    radial-gradient(ellipse at 50% 52%, rgba(255, 255, 255, 0.035) 0%, transparent 62%);
+  filter: blur(28px);
+  -webkit-mask-image: radial-gradient(ellipse at 50% 50%, #000 0 28%, rgba(0, 0, 0, 0.52) 48%, transparent 82%);
+  mask-image: radial-gradient(ellipse at 50% 50%, #000 0 28%, rgba(0, 0, 0, 0.52) 48%, transparent 82%);
+  opacity: 0.82;
+}
+
+.initial-loader-word {
+  margin: 0;
+  color: rgba(237, 241, 220, 0.94);
+  line-height: 0.9;
+  font-size: clamp(72px, 15vw, 168px);
+  font-weight: 700;
+  letter-spacing: 0;
+  text-shadow: 0 0 28px rgba(237, 241, 220, 0.18);
+  overflow: hidden;
+}
+
+.initial-loader-char {
+  display: inline-block;
+  will-change: transform, opacity, filter;
+}
+
+.initial-loader-progress {
+  width: min(60vw, 420px);
+  height: 2px;
+  overflow: hidden;
+  background: rgba(237, 241, 220, 0.12);
+}
+
+.initial-loader-progress span {
+  display: block;
+  width: 100%;
+  height: 100%;
+  transform-origin: left;
+  background: linear-gradient(90deg, rgba(41, 151, 255, 0.95), rgba(237, 241, 220, 0.94));
+  box-shadow: 0 0 18px rgba(41, 151, 255, 0.48);
+}
+
+.initial-loader p {
+  margin: 0;
+  color: rgba(237, 241, 220, 0.9);
+  font-family: var(--font-cjk-ui);
+  font-size: 13px;
+  line-height: 1;
+  letter-spacing: 0.24em;
+  text-shadow: 0 0 14px rgba(41, 151, 255, 0.24);
+}
+
+.initial-loader-caption {
+  will-change: transform, opacity;
+}
+
+@keyframes initial-loader-scan {
+  from {
+    background-position: 0 -160px, 0 0;
+  }
+
+  to {
+    background-position: 0 160px, 0 0;
+  }
+}
+
+@keyframes initial-loader-grid-pulse {
+  0%,
+  100% {
+    opacity: 0.16;
+    transform: scaleX(0.38);
+  }
+
+  44% {
+    opacity: 0.72;
+    transform: scaleX(1);
+  }
 }
 
 .brand small {
@@ -1791,6 +2003,33 @@ body.reservation-dialog-open {
     padding-inline: 16px;
   }
 
+  .initial-loader-grid {
+    gap: 18px;
+    padding-inline: 20px;
+  }
+
+  .initial-loader-mark {
+    gap: 16px;
+    width: min(90vw, 420px);
+  }
+
+  .initial-loader-word {
+    font-size: clamp(68px, 19vw, 88px);
+  }
+
+  .initial-loader-cinema-mask {
+    height: 128px;
+  }
+
+  .initial-loader-progress {
+    width: min(68vw, 300px);
+  }
+
+  .initial-loader p {
+    font-size: 12px;
+    letter-spacing: 0.18em;
+  }
+
   .brand small {
     display: none;
   }
@@ -2645,5 +2884,9 @@ body.reservation-dialog-open {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
+  }
+
+  .initial-loader::after {
+    animation: none;
   }
 }
