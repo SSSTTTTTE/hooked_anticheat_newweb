@@ -51,6 +51,8 @@ const trustSteps = [
 ];
 
 const decryptCharacters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()_+";
+const INITIAL_LOADER_MAX_DURATION = 5000;
+const INITIAL_LOADER_EXIT_LEAD = 1000;
 
 type ReservationFormData = {
   time: string;
@@ -127,6 +129,10 @@ function InitialLoader({
 }) {
   const loaderRef = useRef<HTMLDivElement | null>(null);
   const wordRef = useRef<HTMLHeadingElement | null>(null);
+  const countdownRef = useRef<HTMLSpanElement | null>(null);
+  const countdownTimerRef = useRef<number | undefined>(undefined);
+  const countdownValueRef = useRef(5);
+  const isCountdownAcceleratingRef = useRef(false);
   const splitRef = useRef<SplitText | null>(null);
   const isReadyRef = useRef(isReady);
   const introCompleteRef = useRef(false);
@@ -136,6 +142,26 @@ function InitialLoader({
   useEffect(() => {
     isReadyRef.current = isReady;
   }, [isReady]);
+
+  useEffect(() => {
+    const startedAt = Date.now();
+
+    const updateCountdown = () => {
+      if (!countdownRef.current) return;
+
+      const remaining = Math.max(
+        0,
+        Math.ceil((INITIAL_LOADER_MAX_DURATION - (Date.now() - startedAt)) / 1000),
+      );
+      countdownValueRef.current = remaining;
+      countdownRef.current.textContent = String(remaining).padStart(2, "0");
+    };
+
+    updateCountdown();
+    countdownTimerRef.current = window.setInterval(updateCountdown, 250);
+
+    return () => window.clearInterval(countdownTimerRef.current);
+  }, []);
 
   const playExit = useCallback(() => {
     if (exitStartedRef.current || !loaderRef.current) return;
@@ -191,6 +217,30 @@ function InitialLoader({
       }, 0.82);
   }, [onComplete]);
 
+  const accelerateCountdownAndExit = useCallback(() => {
+    if (isCountdownAcceleratingRef.current || exitStartedRef.current) return;
+
+    isCountdownAcceleratingRef.current = true;
+    window.clearInterval(countdownTimerRef.current);
+
+    const tick = () => {
+      countdownValueRef.current = Math.max(0, countdownValueRef.current - 1);
+
+      if (countdownRef.current) {
+        countdownRef.current.textContent = String(countdownValueRef.current).padStart(2, "0");
+      }
+
+      if (countdownValueRef.current === 0) {
+        playExit();
+        return;
+      }
+
+      window.setTimeout(tick, 70);
+    };
+
+    tick();
+  }, [playExit]);
+
   useEffect(() => {
     if (!loaderRef.current || !wordRef.current) return;
 
@@ -230,7 +280,7 @@ function InitialLoader({
         onComplete: () => {
           introCompleteRef.current = true;
           if (isReadyRef.current) {
-            playExit();
+            accelerateCountdownAndExit();
           }
         },
       })
@@ -253,13 +303,13 @@ function InitialLoader({
       splitRef.current?.revert();
       splitRef.current = null;
     };
-  }, [onComplete, playExit]);
+  }, [accelerateCountdownAndExit, onComplete]);
 
   useEffect(() => {
     if (isReady && introCompleteRef.current) {
-      playExit();
+      accelerateCountdownAndExit();
     }
-  }, [isReady, playExit]);
+  }, [accelerateCountdownAndExit, isReady]);
 
   return (
     <div
@@ -285,6 +335,10 @@ function InitialLoader({
         </div>
         <p className="initial-loader-caption">
           正在完成环境校验
+          <span className="initial-loader-countdown" aria-hidden="true">
+            <b ref={countdownRef}>05</b>
+            秒
+          </span>
         </p>
       </div>
     </div>
@@ -307,14 +361,19 @@ function App() {
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     const minimumDuration = reduced ? 220 : 1650;
     let isMounted = true;
-    let timer: number | undefined;
+    let minimumTimer: number | undefined;
+    let forceExitTimer: number | undefined;
+    let hardStopTimer: number | undefined;
 
     document.body.classList.add("initial-loader-active");
 
+    let resolveLoad: (() => void) | undefined;
+    const handleLoad = () => resolveLoad?.();
     const loadPromise = document.readyState === "complete"
       ? Promise.resolve()
       : new Promise<void>((resolve) => {
-          window.addEventListener("load", () => resolve(), { once: true });
+          resolveLoad = resolve;
+          window.addEventListener("load", handleLoad, { once: true });
         });
 
     const fontPromise = "fonts" in document
@@ -322,10 +381,19 @@ function App() {
       : Promise.resolve();
 
     const durationPromise = new Promise<void>((resolve) => {
-      timer = window.setTimeout(resolve, minimumDuration);
+      minimumTimer = window.setTimeout(resolve, minimumDuration);
+    });
+    const forceExitPromise = new Promise<void>((resolve) => {
+      forceExitTimer = window.setTimeout(
+        resolve,
+        INITIAL_LOADER_MAX_DURATION - INITIAL_LOADER_EXIT_LEAD,
+      );
     });
 
-    Promise.all([loadPromise, fontPromise, durationPromise]).then(() => {
+    Promise.race([
+      Promise.all([loadPromise, fontPromise, durationPromise]),
+      forceExitPromise,
+    ]).then(() => {
       if (!isMounted) {
         return;
       }
@@ -333,12 +401,21 @@ function App() {
       setIsInitialLoaderReady(true);
     });
 
+    hardStopTimer = window.setTimeout(() => {
+      if (isMounted) {
+        completeInitialLoader();
+      }
+    }, INITIAL_LOADER_MAX_DURATION);
+
     return () => {
       isMounted = false;
-      window.clearTimeout(timer);
+      window.removeEventListener("load", handleLoad);
+      window.clearTimeout(minimumTimer);
+      window.clearTimeout(forceExitTimer);
+      window.clearTimeout(hardStopTimer);
       document.body.classList.remove("initial-loader-active");
     };
-  }, []);
+  }, [completeInitialLoader]);
 
   useEffect(() => {
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;

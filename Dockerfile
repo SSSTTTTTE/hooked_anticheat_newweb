@@ -13,7 +13,7 @@ ENV NODE_ENV=production
 ENV PORT=5173
 
 COPY package*.json ./
-RUN npm ci --omit=dev && npm cache clean --force
+COPY --from=deps /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
 COPY server.mjs ./server.mjs
 

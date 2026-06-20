@@ -311,7 +311,34 @@ input {
 }
 
 .initial-loader-caption {
+  display: flex;
+  align-items: center;
+  gap: 12px;
   will-change: transform, opacity;
+}
+
+.initial-loader-countdown {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 3px;
+  color: rgba(41, 151, 255, 0.82);
+  font-family: var(--font-pixel-latin), var(--font-cjk-ui);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+}
+
+.initial-loader-countdown::before {
+  content: "/";
+  margin-right: 7px;
+  color: rgba(237, 241, 220, 0.28);
+}
+
+.initial-loader-countdown b {
+  min-width: 16px;
+  color: rgba(237, 241, 220, 0.88);
+  font-size: 12px;
+  font-weight: 500;
+  text-align: right;
 }
 
 @keyframes initial-loader-scan {
